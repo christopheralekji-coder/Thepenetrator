@@ -285,6 +285,15 @@ function tickSim(sim) {
   // omedelbar (server.js). Skadefritt no-op om inga zoner.
   tickGrenadeZones(sim, dt, now);
   tickPlayerBurn(sim, now);   // lingrande brand-DoT (3s efter eldkastar-träff, PvP)
+  // v2 forest: löp ut transient player-slows (slow_melee + root_hook bullet) satta av forest-enemies
+  for (const [, _sw] of sim.room.members) {
+    const _ps = _sw && _sw.playerState;
+    if (!_ps || !_ps._slowUntil) continue;
+    if (now >= _ps._slowUntil) {
+      _ps.speedMul   = _ps._baseSpeedMul || 1.0;
+      _ps._slowUntil = 0;
+    }
+  }
 
   // 5s startup-countdown: skicka world-snapshot (för synk) men frys enemy-AI/spawn/damage
   if (sim.simReadyAt && now < sim.simReadyAt) {
@@ -638,6 +647,18 @@ function tickSim(sim) {
             ne._idx = sim.nextEnemyIdx++;
             sim.enemies.push(ne);
           }
+        }
+      }
+      // v2 forest split_on_death: spawn children INNAN splice (respekterar 80-cap)
+      if (e.behavior === 'split' && !e._noSplit && e.splitType && sim.enemies.length < 80) {
+        const _sc = Math.min(e.splitCount || 2, 80 - sim.enemies.length);
+        for (let _si = 0; _si < _sc; _si++) {
+          const _sx = e.x + (Math.random() - 0.5) * 30;
+          const _sy = e.y + (Math.random() - 0.5) * 30;
+          const _child = makeEnemy(e.splitType, _sx, _sy);
+          _child._idx  = sim.nextEnemyIdx++;
+          _child._noSplit = true;   // förhindra kedje-split
+          sim.enemies.push(_child);
         }
       }
       // Drop pickup

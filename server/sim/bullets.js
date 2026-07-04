@@ -942,6 +942,29 @@ function cdDetonateBarrel(sim, barrel) {
   });
 }
 
+// v2 forest lob_aoe: AoE-skada mot alla spelare i radius. Speglar bomber-AoE-loopen
+// (enemies.js ~253-271): invulnUntil respekteras, shield-before-hp, falloff.
+// Anropas när en aoeOnExpire-kula når life=0, OOB, eller träffar en spelare direkt.
+function _hostileAoeVsPlayers(sim, x, y, radius, dmg, now) {
+  if (!sim.room || !sim.room.members) return;
+  const r2 = radius * radius;
+  for (const [, ws] of sim.room.members) {
+    if (!ws.playerState || ws.playerState.hp <= 0) continue;
+    if (now < (ws.playerState.invulnUntil || 0)) continue;
+    const bdx = ws.playerState.x - x, bdy = ws.playerState.y - y;
+    const bd2 = bdx * bdx + bdy * bdy;
+    if (bd2 >= r2) continue;
+    const falloff = 1 - Math.sqrt(bd2) / radius;
+    let remaining = dmg * (0.4 + falloff * 0.6);
+    if ((ws.playerState.shield || 0) > 0) {
+      const absorb = Math.min(ws.playerState.shield, remaining);
+      ws.playerState.shield -= absorb;
+      remaining -= absorb;
+    }
+    if (remaining > 0) ws.playerState.hp = Math.max(0, ws.playerState.hp - remaining);
+  }
+}
+
 // Update bullets — collision + life + special-effekter (boomerang/blackhole/pull-whip).
 // Mirror av game.js:7870-8010.
 function updateBullets(sim, dt, now) {
@@ -1013,6 +1036,36 @@ function updateBullets(sim, dt, now) {
         }
       }
     }
+    // v2 forest homing: styr hostile kula mot närmsta levande spelare varje tick.
+    // Lerp mellan nuvarande riktning och spelare-riktning med homingStrength per tick,
+    // renormera sedan till homingSpeed. Stabil i alla vinklar inkl. 180°.
+    if (b.homing && b.hostile) {
+      let nearestWs = null, nearestD2 = Infinity;
+      for (const [, _hw] of sim.room.members) {
+        if (!_hw.playerState || _hw.playerState.hp <= 0) continue;
+        const _hdx = _hw.playerState.x - b.x, _hdy = _hw.playerState.y - b.y;
+        const _hd2 = _hdx * _hdx + _hdy * _hdy;
+        if (_hd2 < nearestD2) { nearestD2 = _hd2; nearestWs = _hw; }
+      }
+      if (nearestWs) {
+        const _hdx = nearestWs.playerState.x - b.x;
+        const _hdy = nearestWs.playerState.y - b.y;
+        const _hd  = Math.sqrt(_hdx * _hdx + _hdy * _hdy) || 1;
+        const _spd = b.homingSpeed || Math.sqrt(b.vx * b.vx + b.vy * b.vy) || 230;
+        const _hs  = b.homingStrength || 0.09;
+        // Nuvarande riktning (normaliserad)
+        const _cm = Math.sqrt(b.vx * b.vx + b.vy * b.vy) || _spd;
+        const _cdx = b.vx / _cm, _cdy = b.vy / _cm;
+        // Önskad riktning mot spelare (normaliserad)
+        const _wdx = _hdx / _hd, _wdy = _hdy / _hd;
+        // Lerp riktning
+        const _ndx = _cdx + (_wdx - _cdx) * _hs;
+        const _ndy = _cdy + (_wdy - _cdy) * _hs;
+        const _nm  = Math.sqrt(_ndx * _ndx + _ndy * _ndy) || 1;
+        b.vx = (_ndx / _nm) * _spd;
+        b.vy = (_ndy / _nm) * _spd;
+      }
+    }
     // Out-of-bounds eller life-ut → spräng om explosive.
     // Använd arena-specifik worldW/H så bullets cullas vid rätt edge i alla modes.
     let worldMaxX = 5000, worldMaxY = 5000;
@@ -1025,6 +1078,10 @@ function updateBullets(sim, dt, now) {
     if (b.life <= 0 || (!b.gulag && (b.x < 0 || b.y < 0 || b.x > worldMaxX || b.y > worldMaxY))) {
       if (b.explosive && !b.hostile) {
         explode(sim, b.x, b.y, b.explosive, b.dmg, b.ownerPid, b.weaponId);
+      }
+      // v2 forest lob_aoe: spor-bomb detonerar vid life-slut / OOB
+      if (b.hostile && b.aoeOnExpire) {
+        _hostileAoeVsPlayers(sim, b.x, b.y, b.aoeOnExpire.radius, b.aoeOnExpire.dmg, now);
       }
       bullets.splice(i, 1);
       continue;
@@ -1416,6 +1473,18 @@ function updateBullets(sim, dt, now) {
           }
           // C119: Caster-boss gasOnHit — träff mot spelare utlöser gasmoln vid träffpunkten
           if (b.gasOnHit) dropGasCloud(sim, b.x, b.y, 70, 4, 6);
+          // v2 forest lob_aoe: direkt-träff detonerar AoE (dmg:0 på kulan, AoE gör skadan)
+          if (b.aoeOnExpire) {
+            _hostileAoeVsPlayers(sim, b.x, b.y, b.aoeOnExpire.radius, b.aoeOnExpire.dmg, now);
+          }
+          // v2 forest root_hook: krok-träff rotar/sänker spelares speedMul (löper ut i tickSim)
+          if (b.rootOnHit && !ws.playerState._isCompanion) {
+            if (typeof ws.playerState._baseSpeedMul !== 'number') {
+              ws.playerState._baseSpeedMul = ws.playerState.speedMul || 1.0;
+            }
+            ws.playerState.speedMul  = b.rootOnHit.mul;
+            ws.playerState._slowUntil = now + b.rootOnHit.ms;
+          }
           bullets.splice(i, 1);
           break;
         }

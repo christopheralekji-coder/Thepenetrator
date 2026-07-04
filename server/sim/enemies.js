@@ -26,6 +26,16 @@ const ENEMY_STATS = {
   sniper:   { r: 11, hp: 22, speed: 60,  dmg: 0,  color: '#1a2a18', accent: '#ff3a3a', gold: 22, name: '',
               shootRange: 700, shootRate: 2200, bulletSpeed: 900, bulletDmg: 35, bulletColor: '#ff3a3a' },
   swarmer:  { r: 7,  hp: 6,  speed: 260, dmg: 6,  color: '#5a3a1a', accent: '#ff8a3a', gold: 4,  name: '' },
+  // v2 FOREST BIOME (stage 1) — data-driven behavior system
+  forest_mosshusk:    { r: 18, hp: 66, speed: 62,  dmg: 17, color: '#4a5a2a', accent: '#2a3a1a', gold: 14, name: '', behavior: 'melee' },
+  forest_sporefly:    { r: 9,  hp: 16, speed: 235, dmg: 9,  color: '#7a8a2a', accent: '#3a4a10', gold: 9,  name: '', behavior: 'melee' },
+  forest_chokecap:    { r: 12, hp: 24, speed: 95,  dmg: 8,  color: '#5a6a2a', accent: '#a08a2a', gold: 11, name: '', behavior: 'slow_melee', slowMul: 0.55, slowMs: 2500 },
+  forest_sporespitter:{ r: 13, hp: 26, speed: 68,  dmg: 0,  color: '#8a9a3a', accent: '#b7e05a', gold: 14, name: '', behavior: 'spread',    shootRange: 300, shootRate: 1500, bulletSpeed: 340, bulletDmg: 8,  pellets: 4, spreadDeg: 40, bulletColor: '#b7e05a' },
+  forest_cursewisp:   { r: 10, hp: 22, speed: 90,  dmg: 0,  color: '#3a5a2a', accent: '#7dff9a', gold: 16, name: '', behavior: 'homing',    shootRange: 340, shootRate: 1600, bulletSpeed: 230, bulletDmg: 9,  homingStrength: 0.09, bulletColor: '#7dff9a' },
+  forest_vinelasher:  { r: 14, hp: 40, speed: 60,  dmg: 12, color: '#3a5a1a', accent: '#6a8a3a', gold: 18, name: '', behavior: 'root_hook', shootRange: 260, shootRate: 4000, bulletSpeed: 420, bulletDmg: 6,  rootMs: 900, rootMul: 0.35, bulletColor: '#6a8a3a' },
+  forest_rotbloom:    { r: 13, hp: 30, speed: 100, dmg: 11, color: '#5a4a2a', accent: '#8a6a1a', gold: 12, name: '', behavior: 'split',     splitType: 'forest_sporeling', splitCount: 2 },
+  forest_sporemother: { r: 17, hp: 78, speed: 66,  dmg: 14, color: '#4a7a2a', accent: '#9aff5a', gold: 26, name: '', behavior: 'lob_aoe',  shootRange: 320, shootRate: 3500, bulletSpeed: 300, aoeRadius: 70, aoeDmg: 18, bulletColor: '#9aff5a' },
+  forest_sporeling:   { r: 8,  hp: 8,  speed: 200, dmg: 6,  color: '#6a8a3a', accent: '#a0c050', gold: 2,  name: '', behavior: 'melee' },
 };
 
 function makeEnemy(type, x, y) {
@@ -67,6 +77,19 @@ function makeEnemy(type, x, y) {
     // sätts av healer/sniper-AI:n och läses bara av JSON-pkt-bygget i room-sim.
     _healTargetIdx: -1, _aimTargetPid: null,
     coverCheckUntil: 0, targetCover: null,
+    // v2 forest/biome data-driven behavior system
+    behavior:       base.behavior       || 'melee',
+    pellets:        base.pellets        || 1,
+    spreadDeg:      base.spreadDeg      || 40,
+    homingStrength: base.homingStrength || 0,
+    aoeRadius:      base.aoeRadius      || 0,
+    aoeDmg:         base.aoeDmg        || 0,
+    rootMs:         base.rootMs        || 0,
+    rootMul:        base.rootMul       || 1,
+    slowMul:        base.slowMul       || 0.55,
+    slowMs:         base.slowMs        || 2500,
+    splitType:      base.splitType     || null,
+    splitCount:     base.splitCount    || 0,
   };
   return e;
 }
@@ -192,11 +215,128 @@ function updateMindControlled(e, dt, now, allEnemies) {
   }
 }
 
+// ─── v2 Forest/biome data-driven behavior handlers ───────────────────────────
+// Gemensam rörelse-hjälp: håll avstånd (ideal px), strafe med perioden freqMs.
+function _rangedMove(e, dt, now, dx, dy, d, ideal, freqMs) {
+  let mvx = 0, mvy = 0;
+  if (d > ideal + 40) { mvx = dx / d; mvy = dy / d; }
+  else if (d < ideal - 40) { mvx = -dx / d; mvy = -dy / d; }
+  const st = Math.sin(now / freqMs + (e.walkPhase || 0));
+  mvx += -dy / d * st * 0.4;
+  mvy +=  dx / d * st * 0.4;
+  e.x += mvx * e.speed * dt;
+  e.y += mvy * e.speed * dt;
+}
+
+// 'spread' — forest_sporespitter: håll avstånd, skjut spread-salva.
+function _behaviorSpread(e, dt, now, sim, p, dx, dy, d) {
+  const range = e.shootRange || 300;
+  _rangedMove(e, dt, now, dx, dy, d, range * 0.8, 700);
+  if (d > range || now - e.lastShot < (e.shootRate || 1500)) return;
+  e.lastShot = now;
+  e._attackFxUntil = now + 220;
+  const pellets = e.pellets || 4;
+  const halfSpread = ((e.spreadDeg || 40) * Math.PI / 180) / 2;
+  const step = pellets > 1 ? halfSpread * 2 / (pellets - 1) : 0;
+  const baseAng = Math.atan2(dy, dx);
+  const spd = e.bulletSpeed || 340;
+  for (let pi = 0; pi < pellets; pi++) {
+    const ang = baseAng - halfSpread + pi * step;
+    sim.bullets.push({
+      x: e.x, y: e.y,
+      vx: Math.cos(ang) * spd, vy: Math.sin(ang) * spd,
+      dmg: e.bulletDmg || 8, life: 2, r: 4,
+      color: e.bulletColor || '#b7e05a', hostile: true,
+    });
+  }
+}
+
+// 'homing' — forest_cursewisp: håll avstånd, skjut självstyrande kula.
+function _behaviorHoming(e, dt, now, sim, p, dx, dy, d) {
+  const range = e.shootRange || 340;
+  _rangedMove(e, dt, now, dx, dy, d, range * 0.8, 750);
+  if (d > range || now - e.lastShot < (e.shootRate || 1600)) return;
+  e.lastShot = now;
+  e._attackFxUntil = now + 220;
+  const spd = e.bulletSpeed || 230;
+  const ang = Math.atan2(dy, dx);
+  sim.bullets.push({
+    x: e.x, y: e.y,
+    vx: Math.cos(ang) * spd, vy: Math.sin(ang) * spd,
+    dmg: e.bulletDmg || 9, life: 2.5, r: 5,
+    color: e.bulletColor || '#7dff9a', hostile: true,
+    homing: true, homingStrength: e.homingStrength || 0.09, homingSpeed: spd,
+  });
+}
+
+// 'lob_aoe' — forest_sporemother: håll avstånd ~shootRange, kasta spor-bomb.
+// Kulan har dmg:0 och flaggan aoeOnExpire — AoE-skadan appliceras i bullets.js.
+function _behaviorLobAoe(e, dt, now, sim, p, dx, dy, d) {
+  const range = e.shootRange || 320;
+  _rangedMove(e, dt, now, dx, dy, d, range, 900);
+  if (d > range || now - e.lastShot < (e.shootRate || 3500)) return;
+  e.lastShot = now;
+  e._attackFxUntil = now + 220;
+  const spd = e.bulletSpeed || 300;
+  const ang = Math.atan2(dy, dx);
+  sim.bullets.push({
+    x: e.x, y: e.y,
+    vx: Math.cos(ang) * spd, vy: Math.sin(ang) * spd,
+    dmg: 0, life: 1.6, r: 6,
+    color: e.bulletColor || '#9aff5a', hostile: true,
+    aoeOnExpire: { radius: e.aoeRadius || 70, dmg: e.aoeDmg || 18 },
+  });
+}
+
+// 'root_hook' — forest_vinelasher: melé om nära, annars skjut krok-kula.
+// Kula flaggas rootOnHit — slow appliceras i bullets.js vid player-träff.
+// Kontaktskada (dmg:12) tas om handen av den vanliga applyContactDamage.
+function _behaviorRootHook(e, dt, now, sim, p, dx, dy, d) {
+  const range = e.shootRange || 260;
+  // Avancera när > 60% av range; backa bara om extremt nära (<30% = melee-kontakt)
+  let mvx = 0, mvy = 0;
+  if (d > range * 0.6) { mvx = dx / d; mvy = dy / d; }
+  else if (d < range * 0.3) { mvx = -dx / d; mvy = -dy / d; }
+  const st = Math.sin(now / 800 + (e.walkPhase || 0));
+  mvx += -dy / d * st * 0.3;
+  mvy +=  dx / d * st * 0.3;
+  e.x += mvx * e.speed * dt;
+  e.y += mvy * e.speed * dt;
+  // Skjut krok bara när utanför melee-räckvidd
+  if (d <= range && d > 60 && now - e.lastShot >= (e.shootRate || 4000)) {
+    e.lastShot = now;
+    e._attackFxUntil = now + 220;
+    const spd = e.bulletSpeed || 420;
+    const ang = Math.atan2(dy, dx);
+    sim.bullets.push({
+      x: e.x, y: e.y,
+      vx: Math.cos(ang) * spd, vy: Math.sin(ang) * spd,
+      dmg: e.bulletDmg || 6, life: 1.2, r: 4,
+      color: e.bulletColor || '#6a8a3a', hostile: true,
+      rootOnHit: { ms: e.rootMs || 900, mul: e.rootMul || 0.35 },
+    });
+  }
+}
+// ─────────────────────────────────────────────────────────────────────────────
+
 // Per-typ AI — speglar game.js:7316-7458
 function updateEnemyAI(e, dt, now, sim, p, allEnemies) {
   const dxRaw = p.x - e.x, dyRaw = p.y - e.y;
   const dRaw = Math.sqrt(dxRaw * dxRaw + dyRaw * dyRaw) || 1;
   const dx = dxRaw, dy = dyRaw, d = dRaw;
+
+  // v2 forest/biome behavior dispatch — ranged+special behaviors return early;
+  // 'melee'/'slow_melee'/'split' fall through to the melee branch below.
+  if (e.behavior && e.behavior !== 'melee' && e.behavior !== 'slow_melee' && e.behavior !== 'split') {
+    switch (e.behavior) {
+      case 'spread':    _behaviorSpread(e, dt, now, sim, p, dx, dy, d);    break;
+      case 'homing':    _behaviorHoming(e, dt, now, sim, p, dx, dy, d);    break;
+      case 'lob_aoe':   _behaviorLobAoe(e, dt, now, sim, p, dx, dy, d);   break;
+      case 'root_hook': _behaviorRootHook(e, dt, now, sim, p, dx, dy, d); break;
+      default:          /* unknown: simple advance */ e.x += (dx / d) * e.speed * dt; e.y += (dy / d) * e.speed * dt; break;
+    }
+    return;
+  }
 
   if (e.type === 'healer') {
     // Heala närmsta dålig (within 200)
@@ -495,6 +635,12 @@ function applyContactDamage(e, p, sim) {
       // rimlig tid. Tidigare: 500ms blockerade alla andra enemies → 1 hit/0.5s
       // oavsett hur många runt dig = 15-20s att dö trots omringning.
       p.invulnUntil = now + (sim && sim.survivorsActive ? 150 : 500);
+      // v2 forest slow_melee: sätt transient player-slow (expires i tickSim-sweep)
+      if (e.behavior === 'slow_melee' && !p._isCompanion && !p._isCoreTarget) {
+        if (typeof p._baseSpeedMul !== 'number') p._baseSpeedMul = (p.speedMul || 1.0);
+        p.speedMul  = e.slowMul || 0.55;
+        p._slowUntil = now + (e.slowMs || 2500);
+      }
     }
     e.contactCd = 0.6;
     e._attackFxUntil = now + 220;   // attack-anim-telegraf (klient fx-bit 256)

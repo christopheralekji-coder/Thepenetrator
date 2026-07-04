@@ -52,8 +52,8 @@ const STAGES = [
       { type: 'ninja', name: 'SHADOW STALKER', power: 'cloaker',      hpMul: 14, dmgMul: 2.2, scale: 1.4, gold: 250 },
     ],
     zones: [
-      { count: 8,  pool: ['grunt', 'runner'] },
-      { count: 10, pool: ['grunt', 'dog', 'runner'], event: 'release_dogs' },
+      { count: 8,  pool: ['forest_mosshusk', 'forest_sporefly', 'forest_chokecap', 'forest_rotbloom'] },
+      { count: 10, pool: ['forest_sporespitter', 'forest_cursewisp', 'forest_vinelasher', 'forest_sporemother', 'forest_rotbloom'], event: 'release_dogs' },
     ],
   },
   { id: 2, name: 'DEN BRÄNDA ÖKNEN', kind: 'desert', worldW: 2200, worldH: 2600,
