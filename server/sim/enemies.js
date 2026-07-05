@@ -115,6 +115,20 @@ const ENEMY_STATS = {
   fortress_lancer:      { r: 14, hp: 55,  speed: 130, dmg: 16, color: '#606870', accent: '#c8a832', gold: 20, name: '', behavior: 'charger',   dashInterval: 3000, dashSpeed: 430, dashDmg: 32, telegraphMs: 300 },
   fortress_herald:      { r: 12, hp: 34,  speed: 80,  dmg: 0,  color: '#8a7030', accent: '#ffd24a', gold: 24, name: '', behavior: 'buff_aura', auraRange: 180, speedBuffPct: 35, buffInterval: 1000 },
   fortress_hook:        { r: 13, hp: 30,  speed: 85,  dmg: 8,  color: '#707880', accent: '#c0a020', gold: 18, name: '', behavior: 'root_hook', shootRange: 300, shootRate: 3500, bulletSpeed: 500, bulletDmg: 6,  rootMs: 900, rootMul: 0.40, bulletColor: '#c0a020' },
+  // v2 DEDICATED CAMPAIGN MINIBOSSES (one per biome, stages 1-10) ——
+  // Used exclusively in stages-data.js miniBosses arrays; client renders via '<biome>_miniboss' TEX.
+  // power:'' on all entries so the client falls through to the dedicated miniboss art.
+  // No new behavior code — all behaviors reuse the data-driven system in updateEnemy().
+  forest_miniboss:       { r: 22, hp: 45, speed: 70,  dmg: 16, color: '#5a7a2a', accent: '#9aff5a', gold: 180, name: '', behavior: 'lob_aoe',       shootRange: 320, shootRate: 2800, bulletSpeed: 280, aoeRadius: 80,  aoeDmg: 24, bulletColor: '#9aff5a' },
+  desert_miniboss:       { r: 23, hp: 55, speed: 90,  dmg: 22, color: '#c06a1a', accent: '#ff8a3a', gold: 200, name: '', behavior: 'charger',        dashInterval: 2800, dashSpeed: 540, dashDmg: 38, telegraphMs: 500 },
+  military_miniboss:     { r: 23, hp: 50, speed: 70,  dmg: 0,  color: '#4a5a3a', accent: '#ff7a3a', gold: 200, name: '', behavior: 'spread',         shootRange: 360, shootRate: 1400, bulletSpeed: 420, bulletDmg: 12, pellets: 5, spreadDeg: 40, bulletColor: '#ff7a3a' },
+  ossuary_miniboss:      { r: 23, hp: 52, speed: 70,  dmg: 20, color: '#7a6a5a', accent: '#7affd0', gold: 210, name: '', behavior: 'root_hook',      shootRange: 340, shootRate: 3200, bulletSpeed: 460, bulletDmg: 10, rootMs: 1000, rootMul: 0.40, bulletColor: '#7affd0' },
+  swamp_miniboss:        { r: 23, hp: 58, speed: 95,  dmg: 18, color: '#2a5a2a', accent: '#4aff4a', gold: 210, name: '', behavior: 'lifesteal',      lifestealPct: 100 },
+  volcano_miniboss:      { r: 23, hp: 55, speed: 80,  dmg: 20, color: '#8a2a0a', accent: '#ff5a1a', gold: 220, name: '', behavior: 'burn_melee',     pBurnMs: 3000, pBurnDps: 8 },
+  arctic_miniboss:       { r: 23, hp: 50, speed: 75,  dmg: 16, color: '#5a7aaa', accent: '#bfe8ff', gold: 220, name: '', behavior: 'homing',         shootRange: 400, shootRate: 1500, bulletSpeed: 300, bulletDmg: 12, homingStrength: 0.08, bulletColor: '#bfe8ff' },
+  crystal_cave_miniboss: { r: 24, hp: 60, speed: 65,  dmg: 22, color: '#6a6ab0', accent: '#aaddff', gold: 240, name: '', behavior: 'reflect_shield', reflectArc: 140, reflectSpeedMul: 0.85, reflectDmg: 12 },
+  omega_miniboss:        { r: 23, hp: 50, speed: 60,  dmg: 0,  color: '#6a808a', accent: '#26ffe6', gold: 240, name: '', behavior: 'sniper',         shootRange: 700, shootRate: 2200, telegraphMs: 800, bulletSpeed: 950, bulletDmg: 42, bulletColor: '#26ffe6' },
+  fortress_miniboss:     { r: 24, hp: 62, speed: 110, dmg: 22, color: '#4a5060', accent: '#c8a832', gold: 260, name: '', behavior: 'charger',        dashInterval: 3000, dashSpeed: 480, dashDmg: 40, telegraphMs: 400 },
 };
 
 function makeEnemy(type, x, y) {
