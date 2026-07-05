@@ -393,8 +393,9 @@ function loadStage(sim, wave) {
   for (const [, ws] of sim.room.members) {
     if (ws.playerState) {
       ws.playerState.hp = 100;
-      // v2 #68 (additivt): stage-reset ger start-shield igen (V1: baseShield 0 → no-op)
-      if (sim.baseShield > 0) ws.playerState.shield = sim.baseShield;
+      // v2: varje ny stage ger FULL hp + FULL shield (user-önskat). Full shield = 100
+      // (eller högre maxShield/baseShield om satt). Gäller story-familjen (PvE).
+      ws.playerState.shield = Math.max(100, ws.playerState.maxShield || 0, sim.baseShield || 0);
       ws.playerState.x = stage.spawnPos.x;
       ws.playerState.y = stage.spawnPos.y;
       ws.playerState.invulnUntil = Date.now() + 1500;
