@@ -47,9 +47,9 @@ const STAGES = [
     spawnPos: { x: 1000, y: 2640 }, goalPos: { x: 1000, y: 220 }, goalRadius: 100,
     bossKey: 'witheredelder',
     miniBosses: [
-      { type: 'brute', name: 'GROVE GRIPPER',  power: 'caster',       hpMul: 7,  dmgMul: 1.6, scale: 1.3, gold: 120 },
-      { type: 'brute', name: 'BARK WARDEN',    power: 'tank_charger', hpMul: 10, dmgMul: 1.9, scale: 1.5, gold: 180 },
-      { type: 'ninja', name: 'SHADOW STALKER', power: 'cloaker',      hpMul: 14, dmgMul: 2.2, scale: 1.4, gold: 250 },
+      { type: 'forest_mosshusk',   name: 'ELDER MOSSHUSK',    power: '', hpMul: 8,  dmgMul: 1.6, scale: 1.35, gold: 140 },
+      { type: 'forest_sporemother',name: 'GRAND SPOREMOTHER', power: '', hpMul: 11, dmgMul: 1.9, scale: 1.45, gold: 190 },
+      { type: 'forest_vinelasher', name: 'ANCIENT VINELASHER',power: '', hpMul: 14, dmgMul: 2.2, scale: 1.5,  gold: 255 },
     ],
     zones: [
       { count: 8,  pool: ['forest_mosshusk', 'forest_sporefly', 'forest_chokecap', 'forest_rotbloom'] },
@@ -60,9 +60,9 @@ const STAGES = [
     spawnPos: { x: 1100, y: 2440 }, goalPos: { x: 1100, y: 220 }, goalRadius: 100,
     bossKey: 'buriedcrown',
     miniBosses: [
-      { type: 'brute',   name: 'SAND REAVER',  power: 'brute_charger', hpMul: 8,  dmgMul: 1.7, scale: 1.3, gold: 150 },
-      { type: 'ninja',   name: 'DUNE STALKER', power: 'cloaker',       hpMul: 11, dmgMul: 2.0, scale: 1.3, gold: 220 },
-      { type: 'shooter', name: 'SUN PROPHET',  power: 'caster',        hpMul: 15, dmgMul: 2.2, scale: 1.5, gold: 290 },
+      { type: 'desert_sandram', name: 'IRON SANDRAM',  power: '', hpMul: 9,  dmgMul: 1.7, scale: 1.35, gold: 155 },
+      { type: 'desert_warden',  name: 'DUNE WARDEN',   power: '', hpMul: 12, dmgMul: 2.0, scale: 1.5,  gold: 210 },
+      { type: 'desert_lurker',  name: 'DEEP LURKER',   power: '', hpMul: 15, dmgMul: 2.3, scale: 1.5,  gold: 275 },
     ],
     zones: [
       { count: 9,  pool: ['desert_jackal', 'desert_husk', 'desert_reaver', 'desert_sandram'] },
@@ -86,9 +86,9 @@ const STAGES = [
     spawnPos: { x: 950, y: 2440 }, goalPos: { x: 950, y: 220 }, goalRadius: 100,
     bossKey: 'ossarius',
     miniBosses: [
-      { type: 'brute',   name: 'BONE-CRACK CAPTAIN', power: 'brute_charger', hpMul: 9,  dmgMul: 1.8, scale: 1.4, gold: 200 },
-      { type: 'brute',   name: 'COFFIN-MAKER',       power: 'tank_charger',  hpMul: 12, dmgMul: 2.1, scale: 1.5, gold: 270 },
-      { type: 'shooter', name: 'TWITCHING REGIMENT', power: 'avatar',        hpMul: 16, dmgMul: 2.3, scale: 1.5, gold: 340 },
+      { type: 'ossuary_colossus', name: 'COLOSSUS REX',    power: '', hpMul: 10, dmgMul: 1.8, scale: 1.4,  gold: 200 },
+      { type: 'ossuary_lancer',   name: 'UNDYING LANCER',  power: '', hpMul: 13, dmgMul: 2.1, scale: 1.5,  gold: 270 },
+      { type: 'ossuary_bulwark',  name: 'ETERNAL BULWARK', power: '', hpMul: 16, dmgMul: 2.4, scale: 1.5,  gold: 345 },
     ],
     zones: [
       { count: 8,  pool: ['ossuary_shambler', 'ossuary_colossus', 'ossuary_spitter', 'ossuary_splitter'] },
@@ -99,9 +99,9 @@ const STAGES = [
     spawnPos: { x: 1000, y: 2440 }, goalPos: { x: 1000, y: 220 }, goalRadius: 100,
     bossKey: 'blightsovereign',
     miniBosses: [
-      { type: 'sniper',  name: 'TOXIC SHADE',      power: 'gas_sniper', hpMul: 9,  dmgMul: 2.0, scale: 1.3, gold: 270 },
-      { type: 'ninja',   name: 'DRIFTSPECTRE',     power: 'cloaker',    hpMul: 12, dmgMul: 2.2, scale: 1.4, gold: 350 },
-      { type: 'shooter', name: 'VENOM ARCHITECT',  power: 'caster',     hpMul: 16, dmgMul: 2.4, scale: 1.5, gold: 440 },
+      { type: 'swamp_bulwark', name: 'BLIGHT BULWARK', power: '', hpMul: 10, dmgMul: 1.9, scale: 1.4,  gold: 220 },
+      { type: 'swamp_bloat',   name: 'PLAGUE BLOAT',   power: '', hpMul: 13, dmgMul: 2.2, scale: 1.45, gold: 290 },
+      { type: 'swamp_angler',  name: 'VOID ANGLER',    power: '', hpMul: 16, dmgMul: 2.4, scale: 1.5,  gold: 360 },
     ],
     zones: [
       { count: 10, pool: ['swamp_oozeling', 'swamp_leech', 'swamp_drowned', 'swamp_spitter'] },
@@ -112,9 +112,9 @@ const STAGES = [
     spawnPos: { x: 1100, y: 2440 }, goalPos: { x: 1100, y: 220 }, goalRadius: 100,
     bossKey: 'emberoracle',
     miniBosses: [
-      { type: 'shooter', name: 'ASH PRIEST',   power: 'caster',  hpMul: 9,  dmgMul: 1.9, scale: 1.4, gold: 300 },
-      { type: 'soldier', name: 'PYRE-CRAWLER', power: 'jetpack', hpMul: 13, dmgMul: 2.1, scale: 1.4, gold: 380 },
-      { type: 'ninja',   name: 'WICK & EMBER',  power: 'avatar', hpMul: 17, dmgMul: 2.4, scale: 1.5, gold: 460 },
+      { type: 'volcano_slag_behemoth', name: 'SLAG COLOSSUS',      power: '', hpMul: 11, dmgMul: 1.9, scale: 1.4,  gold: 250 },
+      { type: 'volcano_obsidian_ram',  name: 'OBSIDIAN BERSERKER', power: '', hpMul: 14, dmgMul: 2.2, scale: 1.5,  gold: 330 },
+      { type: 'volcano_lava_warden',   name: 'LAVA WARDEN PRIME',  power: '', hpMul: 17, dmgMul: 2.4, scale: 1.55, gold: 410 },
     ],
     zones: [
       { count: 10, pool: ['volcano_cinderling', 'volcano_magma_hound', 'volcano_slag_behemoth', 'volcano_molten_spawn'] },
@@ -125,9 +125,9 @@ const STAGES = [
     spawnPos: { x: 1100, y: 2440 }, goalPos: { x: 1100, y: 220 }, goalRadius: 100,
     bossKey: 'mirroredone',
     miniBosses: [
-      { type: 'ninja',   name: 'GLASS REAPER',  power: 'cloaker', hpMul: 10, dmgMul: 2.0, scale: 1.3, gold: 320 },
-      { type: 'shooter', name: 'FROST PRIEST',  power: 'caster',  hpMul: 13, dmgMul: 2.2, scale: 1.4, gold: 410 },
-      { type: 'shooter', name: 'HOLLOW DANCER', power: 'plasma',  hpMul: 17, dmgMul: 2.5, scale: 1.5, gold: 500 },
+      { type: 'arctic_behemoth',       name: 'FROST BEHEMOTH',    power: '', hpMul: 12, dmgMul: 2.0, scale: 1.4,  gold: 280 },
+      { type: 'arctic_avalanche',      name: 'AVALANCHE TITAN',   power: '', hpMul: 15, dmgMul: 2.3, scale: 1.5,  gold: 360 },
+      { type: 'arctic_mirrorsentinel', name: 'MIRROR COLOSSUS',   power: '', hpMul: 18, dmgMul: 2.5, scale: 1.55, gold: 440 },
     ],
     zones: [
       { count: 10, pool: ['arctic_rimeguard', 'arctic_behemoth', 'arctic_shardcaster', 'arctic_brittlerevenant'] },
@@ -138,9 +138,9 @@ const STAGES = [
     spawnPos: { x: 900, y: 2640 }, goalPos: { x: 900, y: 220 }, goalRadius: 100,
     bossKey: 'vanguardatlas',
     miniBosses: [
-      { type: 'brute',     name: 'DEEP-CHASER',       power: 'brute_charger', hpMul: 10, dmgMul: 1.9, scale: 1.4, gold: 340 },
-      { type: 'swordsman', name: 'SHATTERED MARSHAL', power: 'shielder',      hpMul: 14, dmgMul: 2.3, scale: 1.5, gold: 440 },
-      { type: 'shooter',   name: 'SUBSONIC PROPHET',  power: 'plasma',        hpMul: 18, dmgMul: 2.6, scale: 1.6, gold: 540 },
+      { type: 'crystal_cave_facet_guardian',    name: 'FACET TITAN',         power: '', hpMul: 13, dmgMul: 2.0, scale: 1.4,  gold: 310 },
+      { type: 'crystal_cave_prism_lance',       name: 'PRISM LANCE PRIME',   power: '', hpMul: 15, dmgMul: 2.3, scale: 1.5,  gold: 400 },
+      { type: 'crystal_cave_refraction_lurker', name: 'REFRACTION PHANTOM',  power: '', hpMul: 18, dmgMul: 2.6, scale: 1.55, gold: 490 },
     ],
     zones: [
       { count: 11, pool: ['crystal_cave_crawler', 'crystal_cave_shard_skitter', 'crystal_cave_prism_stalker', 'crystal_cave_refraction_lurker'] },
@@ -151,9 +151,9 @@ const STAGES = [
     spawnPos: { x: 1000, y: 2240 }, goalPos: { x: 1000, y: 220 }, goalRadius: 100,
     bossKey: 'lastsovereign',
     miniBosses: [
-      { type: 'robot',   name: 'OMEGA-LOGIC',     power: 'avatar',     hpMul: 11, dmgMul: 2.1, scale: 1.5, gold: 420 },
-      { type: 'shooter', name: 'SOULFIRE WARDEN', power: 'jetpack',    hpMul: 15, dmgMul: 2.4, scale: 1.5, gold: 520 },
-      { type: 'sniper',  name: 'VOID JUDGE',      power: 'gas_sniper', hpMul: 20, dmgMul: 2.7, scale: 1.6, gold: 620 },
+      { type: 'omega_core_juggernaut', name: 'OMEGA TITAN',       power: '', hpMul: 14, dmgMul: 2.1, scale: 1.45, gold: 370 },
+      { type: 'omega_arc_lance',       name: 'OMEGA ARC PRIME',   power: '', hpMul: 17, dmgMul: 2.4, scale: 1.5,  gold: 470 },
+      { type: 'omega_aegis_dish',      name: 'OMEGA AEGIS PRIME', power: '', hpMul: 20, dmgMul: 2.7, scale: 1.6,  gold: 580 },
     ],
     zones: [
       { count: 10, pool: ['omega_chrome_husk', 'omega_volt_wisp', 'omega_core_juggernaut', 'omega_overload_cell'] },
@@ -164,9 +164,9 @@ const STAGES = [
     spawnPos: { x: 1100, y: 2640 }, goalPos: { x: 1100, y: 300 }, goalRadius: 120,
     bossKey: 'thewarden',
     miniBosses: [
-      { type: 'soldier',   name: 'IRON CHAMPION',    power: 'shielder',     hpMul: 12, dmgMul: 2.2, scale: 1.5, gold: 500 },
-      { type: 'brute',     name: 'SIEGE BREAKER',    power: 'tank_charger', hpMul: 16, dmgMul: 2.5, scale: 1.7, gold: 620 },
-      { type: 'shooter',   name: "WARDEN'S HERALD",  power: 'avatar',       hpMul: 21, dmgMul: 2.8, scale: 1.6, gold: 760 },
+      { type: 'fortress_colossus',     name: 'IRON COLOSSUS',      power: '', hpMul: 15, dmgMul: 2.2, scale: 1.5,  gold: 450 },
+      { type: 'fortress_lancer',       name: 'SIEGE LANCER PRIME', power: '', hpMul: 18, dmgMul: 2.5, scale: 1.55, gold: 570 },
+      { type: 'fortress_tower_shield', name: 'FORTRESS CHAMPION',  power: '', hpMul: 21, dmgMul: 2.8, scale: 1.6,  gold: 700 },
     ],
     zones: [
       { count: 12, pool: ['fortress_ironguard', 'fortress_colossus', 'fortress_crossbow', 'fortress_tower_shield'] },

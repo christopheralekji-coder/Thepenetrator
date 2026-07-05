@@ -29,6 +29,7 @@ function makeBoss(bossKey, x, y, coopMul) {
     flashUntil: 0, walkAccum: 0,
     cloakUntil: 0, jetpackUntil: 0, shieldDir: 0, chargeCdAt: 0,
     bulletSpeed: 620, bulletDmg: Math.round(cfg.dmg * 0.55),
+    bulletColor: cfg.bulletColor || cfg.glow,
     shootRange: 520, shootRate: 1200,
     // Cloaker burst-kö: ersätter setTimeout med tick-baserad scheduling
     burstQueue: [],
@@ -93,7 +94,7 @@ function flushBurstQueue(sim, b, players, now) {
     if (b.dead) return;
     const target = findNearestPlayer(b, players);
     if (target) {
-      bossShoot(sim, b, target.x - b.x, target.y - b.y, 1, 0.06, '#ff3a44', 0.95, 1.4);
+      bossShoot(sim, b, target.x - b.x, target.y - b.y, 1, 0.06, b.bulletColor, 0.95, 1.4);
     }
   }
 }
@@ -121,7 +122,7 @@ function aiCaster(sim, b, p, ndx, ndy, d, hpFrac, dt, now) {
       const a = Math.atan2(p.y - b.y, p.x - b.x) + i * 0.20;
       sim.bullets.push({
         x: b.x, y: b.y, vx: Math.cos(a) * 420, vy: Math.sin(a) * 420,
-        dmg: b.bulletDmg, life: 1.6, r: 7, color: b.glow, hostile: true,
+        dmg: b.bulletDmg, life: 1.6, r: 7, color: b.bulletColor, hostile: true,
         gasOnHit: true,
       });
     }
@@ -207,7 +208,7 @@ function aiBruteCharger(sim, b, p, ndx, ndy, d, hpFrac, dt, now) {
   }
   if (hpFrac < 0.5 && now - b.lastSpread > 2500) {
     b.lastSpread = now;
-    bossShoot(sim, b, p.x - b.x, p.y - b.y, 5, 0.20, '#ff8a30', 0.9, 1.6);
+    bossShoot(sim, b, p.x - b.x, p.y - b.y, 5, 0.20, b.bulletColor, 0.9, 1.6);
   }
 }
 
@@ -225,7 +226,7 @@ function aiPlasma(sim, b, p, ndx, ndy, d, hpFrac, dt, now) {
   else if (d < ideal - 40) { b.x -= ndx * b.speed * dt; b.y -= ndy * b.speed * dt; }
   if (now - b.lastAttack > 900) {
     b.lastAttack = now;
-    bossShoot(sim, b, p.x - b.x, p.y - b.y, 1, 0, b.glow, 1.1, 2.4);
+    bossShoot(sim, b, p.x - b.x, p.y - b.y, 1, 0, b.bulletColor, 1.1, 2.4);
   }
   if (hpFrac < 0.5 && now - b.lastSpread > 3500) {
     b.lastSpread = now;
@@ -249,7 +250,7 @@ function aiJetpack(sim, b, p, ndx, ndy, d, hpFrac, dt, now) {
   if (d > 260) { b.x += ndx * b.speed * 0.7 * dt; b.y += ndy * b.speed * 0.7 * dt; }
   if (now - b.lastAttack > 1300) {
     b.lastAttack = now;
-    bossShoot(sim, b, p.x - b.x, p.y - b.y, 3, 0.15, '#ff5a14', 1.0, 1.8);
+    bossShoot(sim, b, p.x - b.x, p.y - b.y, 3, 0.15, b.bulletColor, 1.0, 1.8);
   }
   if (now - b.lastSpread > 5000) {
     b.lastSpread = now;
@@ -275,7 +276,7 @@ function aiGasSniper(sim, b, p, ndx, ndy, d, hpFrac, dt, now) {
       const a = Math.atan2(p.y - b.y, p.x - b.x) + i * 0.07;
       sim.bullets.push({
         x: b.x, y: b.y, vx: Math.cos(a) * 720, vy: Math.sin(a) * 720,
-        dmg: b.bulletDmg, life: 2.4, r: 5, color: b.glow, hostile: true,
+        dmg: b.bulletDmg, life: 2.4, r: 5, color: b.bulletColor, hostile: true,
       });
     }
   }
@@ -295,7 +296,7 @@ function aiShielder(sim, b, p, ndx, ndy, d, hpFrac, dt, now) {
   b.y += ndy * b.speed * dt;
   if (d < 380 && now - b.lastAttack > 1400) {
     b.lastAttack = now;
-    bossShoot(sim, b, p.x - b.x, p.y - b.y, 1, 0, '#ffd54a', 1.3, 2.0);
+    bossShoot(sim, b, p.x - b.x, p.y - b.y, 1, 0, b.bulletColor, 1.3, 2.0);
   }
   if (hpFrac < 0.4 && now - b.lastSpread > 4000 && !b.chargeUntil) {
     b.lastSpread = now;
@@ -317,13 +318,13 @@ function aiAvatar(sim, b, p, ndx, ndy, d, hpFrac, dt, now) {
     b.x = p.x + Math.cos(a) * 250;
     b.y = p.y + Math.sin(a) * 250;
     b.cloakUntil = 0;
-    bossShoot(sim, b, p.x - b.x, p.y - b.y, 8, Math.PI / 4, b.glow, 0.85, 2.5);
+    bossShoot(sim, b, p.x - b.x, p.y - b.y, 8, Math.PI / 4, b.bulletColor, 0.85, 2.5);
   }
   const ideal = 300;
   if (d > ideal + 50) { b.x += ndx * b.speed * 0.6 * dt; b.y += ndy * b.speed * 0.6 * dt; }
   if (now - b.lastAttack > 1800) {
     b.lastAttack = now;
-    bossShoot(sim, b, p.x - b.x, p.y - b.y, 12, Math.PI * 2 / 12, b.glow, 0.7, 3.0);
+    bossShoot(sim, b, p.x - b.x, p.y - b.y, 12, Math.PI * 2 / 12, b.bulletColor, 0.7, 3.0);
   }
   if (hpFrac < 0.6 && now - b.lastSpread > 6000) {
     b.lastSpread = now;
@@ -346,7 +347,7 @@ function aiFinal(sim, b, p, ndx, ndy, d, hpFrac, dt, now) {
   const phase = hpFrac < 0.33 ? 3 : (hpFrac < 0.66 ? 2 : 1);
   if (phase !== b.phase) {
     b.phase = phase;
-    bossShoot(sim, b, 1, 0, 16, Math.PI * 2 / 16, b.glow, 1.0, 2.5);
+    bossShoot(sim, b, 1, 0, 16, Math.PI * 2 / 16, b.bulletColor, 1.0, 2.5);
   }
   if (b.chargeUntil && now < b.chargeUntil) {
     const sm = slowRatio(b);
@@ -361,7 +362,7 @@ function aiFinal(sim, b, p, ndx, ndy, d, hpFrac, dt, now) {
   if (now - b.lastSpread >= (phase === 3 ? 800 : 1100)) {
     b.lastSpread = now;
     const shots = phase === 3 ? 9 : (phase === 2 ? 7 : 5);
-    bossShoot(sim, b, p.x - b.x, p.y - b.y, shots, 0.16, '#ff1a1a', 1.0, 2.2);
+    bossShoot(sim, b, p.x - b.x, p.y - b.y, shots, 0.16, b.bulletColor, 1.0, 2.2);
   }
   if (phase >= 2 && now - b.lastAttack >= 5000) {
     b.lastAttack = now;
