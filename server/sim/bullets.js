@@ -232,7 +232,9 @@ function applyMelee(sim, p, weaponId, params) {
   const adrenalineDmg = params.adrenalineDmg || 1;
   const stealthBonus = params.stealthBonus || 1;
   const critChance = params.critChance || 0;
-  const headshotPerk = !!(params.perks && params.perks.headshot);
+  // headshotChance: new wire (float 0..0.30); legacy: params.perks.headshot bool → 0.15
+  const hc = typeof params.headshotChance === 'number' ? params.headshotChance
+    : ((params.perks && params.perks.headshot) ? 0.15 : 0);
   const ultMul = cheats.ultimate ? 10 : 1;
   const ownerTeam = ownerWs.tdmTeam;
   const shooterIsJug = inJug && ownerWs.playerState && ownerWs.playerState.isJug;
@@ -264,7 +266,7 @@ function applyMelee(sim, p, weaponId, params) {
     if (diff > 0.9) continue;
 
     const isCrit = cheats.chozza ? true : Math.random() < critChance;
-    const isHead = headshotPerk && Math.random() < 0.15;
+    const isHead = hc > 0 && Math.random() < hc;
     let baseDmg = getPvpDmg(weaponId, w.dmg);
     // JUG-vapen-specialer:
     //  - Sledge = 1-hit-kill garanterat (bygger high-risk-close-quarters-fantasin)
@@ -584,7 +586,21 @@ function spawnPlayerBullets(sim, p, weaponId, params) {
   const critChance = params.critChance || 0;
   const adrenalineDmg = params.adrenalineDmg || 1;
   const stealthBonus = params.stealthBonus || 1;
-  const headshotPerk = !!(params.perks && params.perks.headshot);
+  // headshotChance: new wire (float 0..0.30); legacy: params.perks.headshot bool → 0.15
+  const hc = typeof params.headshotChance === 'number' ? params.headshotChance
+    : ((params.perks && params.perks.headshot) ? 0.15 : 0);
+  // ricochet: new wire sends number of bounces (1 or 2); legacy bool → 1 bounce, clamped 0..2
+  const _ricochetCount = (() => {
+    const r = params.perks && params.perks.ricochet;
+    if (typeof r === 'number') return Math.min(3, Math.max(0, r | 0));
+    return r ? 1 : 0;
+  })();
+  // splash: flat AoE damage to nearby enemies on hit (campaign/co-op only)
+  const _splashEnabled = !!(params.perks && params.perks.splash);
+  // splashFrac: fraction of the bullet's own damage dealt as AoE (0.20..0.60) — scales
+  // with weapon tier instead of a flat per-bullet add (avoids dominating fast/weak guns).
+  const _splashFrac = _splashEnabled ? Math.min(1, Math.max(0, +(params.splashFrac) || 0)) : 0;
+  const _splashRadius = _splashEnabled ? Math.min(150, Math.max(0, +(params.splashRadius) || 0)) : 0;
 
   // SOLID-vägg-spawn-check (anti "skjut genom väggen via pip-offset"): om bullet-
   // spawnen (player + pip-offset) hamnar INUTI/förbi en solid vägg → skottet skapas ej.
@@ -618,7 +634,7 @@ function spawnPlayerBullets(sim, p, weaponId, params) {
     const ang = p.aimAngle + spread;
     const speed = w.speed * bspeedMul * speedBonus;
     const isCrit = cheatChozza ? true : Math.random() < critChance;
-    const isHead = headshotPerk && Math.random() < 0.15;
+    const isHead = hc > 0 && Math.random() < hc;
     // Bullet-start vid player+offset
     const bx = p.x + Math.cos(ang) * (p.r || 14);
     const by = p.y + Math.sin(ang) * (p.r || 14);
@@ -653,10 +669,14 @@ function spawnPlayerBullets(sim, p, weaponId, params) {
       returns: !!w.returns,
       returnTimer: 0,
       origin: { x: p.x, y: p.y },
-      bounced: false,
       // v2-perks (V1 räknade dem klient-side): studsskott + kraftbrand
-      ricochet: !!(params.perks && params.perks.ricochet),
+      // ricochetLeft: remaining bounces (0=no bounce, 1=one, 2=two); replaces old bool+bounced
+      ricochetLeft: _ricochetCount,
       firespread: !!(params.perks && params.perks.firespread),
+      // splash perk: AoE = splashFrac × bullet damage to other enemies within splashRadius
+      splash: _splashEnabled,
+      splashFrac: _splashFrac,
+      splashRadius: _splashRadius,
       ownerPid: p.peerId,  // kill-credit
       hitIds: null,
       pierceLeft: (params.pierceCount && !(cheatPen || cheatUlt || w.pierce)) ? params.pierceCount : 0,  // CD overpen
@@ -691,8 +711,9 @@ function _pveWalls(sim) {
 }
 
 function ricochetOff(b, walls) {
-  if (!b.ricochet || b.bounced || b.hostile) return false;
-  b.bounced = true;
+  // ricochetLeft: remaining bounces. 0 (or falsy) = no bounce. Hostile bullets never bounce.
+  if (!b.ricochetLeft || b.hostile) return false;
+  b.ricochetLeft--;
   const probe = { _prevX: b._prevX, _prevY: b._prevY, x: b.x, y: b._prevY, r: b.r };
   if (bulletHitsWall(probe, walls)) b.vx = -b.vx; else b.vy = -b.vy;
   b.x = b._prevX; b.y = b._prevY;
@@ -2011,6 +2032,22 @@ function updateBullets(sim, dt, now) {
         let _cdDmg = b.dmg;
         if (sim && sim._cdSlowAmp > 1 && e.slowUntil && now < e.slowUntil) _cdDmg *= sim._cdSlowAmp;
         damageEnemy(e, _cdDmg, b.crit, b.ownerPid, b.weaponId);
+        // Splash perk: flat AoE damage to OTHER enemies within splashRadius of impact.
+        // Excludes the directly-hit enemy (e) to avoid double-dipping.
+        // Only player bullets reach here (hostile path is handled separately).
+        if (b.splash && b.splashFrac > 0 && b.splashRadius > 0) {
+          const _spDmg = b.dmg * b.splashFrac;
+          const _spR2 = b.splashRadius * b.splashRadius;
+          const _spList = sim.enemyGrid ? sim.enemyGrid.getNearby(b.x, b.y, b.splashRadius) : sim.enemies;
+          for (let _si = 0; _si < _spList.length; _si++) {
+            const _se = _spList[_si];
+            if (_se === e || _se.dead) continue;
+            const _sdx = _se.x - b.x, _sdy = _se.y - b.y;
+            if (_sdx * _sdx + _sdy * _sdy < _spR2) {
+              damageEnemy(_se, _spDmg, false, b.ownerPid, b.weaponId);
+            }
+          }
+        }
         // v1.400/v1.431: emit damage-number event för auto-turret bullets så player ser
         // hur mycket turrets gör. Throttle till max 8Hz globalt (purely cosmetic;
         // för många torn-shots gav 20+ events/sek = backpressure).

@@ -1030,6 +1030,17 @@ function applyContactDamage(e, p, sim) {
         p.burnUntil = now + e.pBurnMs;
         p.burnDps   = e.pBurnDps;
       }
+      // CAMPAIGN thorns-perk: reflect a fraction of the contact damage back onto the
+      // attacker. playerState.perks.thorns is a float (0.15..0.60) set via sim_input.
+      // Mirrors the CD thorns-talent reflect pattern (direct e.hp + lastDamager attribution).
+      const _psPerks = p._wsRef && p._wsRef.playerState ? p._wsRef.playerState.perks : null;
+      const _thornsFrac = _psPerks && _psPerks.thorns > 0 ? _psPerks.thorns : 0;
+      if (_thornsFrac > 0) {
+        e.hp -= Math.max(1, Math.round(e.dmg * _thornsFrac));
+        e.lastDamagerPid = p.peerId;
+        e.lastDamagerWeapon = 'thorns';
+        if (e.hp <= 0) e.dead = true;
+      }
     }
     e.contactCd = 0.6;
     e._attackFxUntil = now + 220;   // attack-anim-telegraf (klient fx-bit 256)

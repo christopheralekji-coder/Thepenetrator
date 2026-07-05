@@ -8997,6 +8997,8 @@ function applyPlayerInput(sim, peerId, input) {
       lastlaugh: !!input.perks.lastlaugh,
       magnetism: !!input.perks.magnetism,
       goldMul: Math.max(1, Math.min(2.5, +input.perks.goldMul || 1)),
+      // thorns: new wire — fraction (0.15..0.60) of enemy contact damage reflected back. Clamped 0..1.
+      thorns: Math.min(1, Math.max(0, +(input.perks.thorns) || 0)),
     };
   }
   // Mounted turret-spelare: position låst av server. Ignorera klient-position
