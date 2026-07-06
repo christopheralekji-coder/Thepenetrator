@@ -570,6 +570,22 @@ function tickSim(sim) {
     }
   }
 
+  // PvE lag-comp: snapshot enemy positions AFTER AI movement so bullets.js can
+  // rewind enemies to where a human shooter saw them (mirrors player _history at :263).
+  // Ring-buffer: prune entries older than 350ms + reuse pruned slot objects (noll-alloc
+  // per tick). At 60Hz the window holds ≤22 entries — well within GC budget for 80 enemies.
+  for (const e of sim.enemies) {
+    if (e.dead) continue;
+    if (!e._history) e._history = [];
+    let _ehSlot = null;
+    while (e._history.length > 0 && now - e._history[0].t > 350) {
+      _ehSlot = e._history.shift();
+    }
+    if (_ehSlot) { _ehSlot.t = now; _ehSlot.x = e.x; _ehSlot.y = e.y; }
+    else _ehSlot = { t: now, x: e.x, y: e.y };
+    e._history.push(_ehSlot);
+  }
+
   // Skriv tillbaka playerState.hp + invulnUntil från contact-damage
   if (!sim.deadBodies) sim.deadBodies = {};
   for (const p of players) {

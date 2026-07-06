@@ -67,28 +67,33 @@ function getPvpDmg(weaponId, dmg) {
 // rörliga mål. INTERP_DELAY måste hållas i sync med game.js INTERP_DELAY_MS.
 const MAX_REWIND_MS = 250;
 const CLIENT_INTERP_DELAY_MS = 60;
+// LAGCOMP_MARGIN: broadphase expansion when testing bullets against REWOUND enemy
+// positions. The enemyGrid stores LIVE positions; an enemy rewound ~250ms could be
+// up to ~70px away (250ms * 280px/s fastest enemy = 70px). Without this expansion
+// the broadphase query misses enemies whose live pos is outside queryR but whose
+// rewound pos would have been inside.
+const LAGCOMP_MARGIN = 70;
 // v2 (additivt): Godot-klienten renderar remotes med ADAPTIV interp-fördröjning
 // (60-180ms beroende på jitter, Net.gd) — inte V1-webbens fasta 60ms. Den
 // rapporterar sitt aktuella fönster per skott (sim_shoot.interp → ws._clientInterpMs)
 // så rewinden träffar EXAKT det skytten såg. V1 skickar aldrig fältet → 60ms-default.
-function rewoundPosition(targetWs, shooterRtt, shooterInterpMs) {
-  if (!targetWs || !targetWs.playerState) return null;
-  const cur = { x: targetWs.playerState.x, y: targetWs.playerState.y };
-  // v1.701: skippa BARA för bots (rtt 0/undefined → ingen klient-interp). Alla människor
-  // har 60ms interp-delay → behöver rewind även vid låg ping (annars miss på rörliga mål).
-  if (!shooterRtt) return cur;
+
+// rewoundFromHistory: scan/interpolate core shared by player (PvP) + enemy (PvE) lag-comp.
+// curX/curY = current live position (fallback); hist = [{t,x,y}] oldest→newest.
+// Returns {x,y} at targetTime = now - min(MAX_REWIND_MS, rtt/2 + interp).
+// Falls back to live pos when no rtt or empty history.
+function rewoundFromHistory(curX, curY, hist, shooterRtt, shooterInterpMs) {
+  if (!shooterRtt) return { x: curX, y: curY };
   const interp = (typeof shooterInterpMs === 'number' && shooterInterpMs > 0)
     ? Math.min(200, shooterInterpMs) : CLIENT_INTERP_DELAY_MS;
   const rewindMs = Math.min(MAX_REWIND_MS, shooterRtt / 2 + interp);
   const targetTime = Date.now() - rewindMs;
-  const hist = targetWs.playerState._history;
-  if (!hist || hist.length === 0) return cur;
-  // Hitta snapshot vid targetTime (linear scan från slut — oftast nyligen)
+  if (!hist || hist.length === 0) return { x: curX, y: curY };
+  // Linear scan from newest — targetTime is almost always within the last few entries.
   for (let i = hist.length - 1; i >= 0; i--) {
     if (hist[i].t <= targetTime) {
       const next = hist[i + 1];
       if (next) {
-        // Interpolera mellan hist[i] och next för exakt position vid targetTime
         const span = next.t - hist[i].t;
         const f = span > 0 ? (targetTime - hist[i].t) / span : 0;
         return { x: hist[i].x + (next.x - hist[i].x) * f, y: hist[i].y + (next.y - hist[i].y) * f };
@@ -96,8 +101,17 @@ function rewoundPosition(targetWs, shooterRtt, shooterInterpMs) {
       return { x: hist[i].x, y: hist[i].y };
     }
   }
-  // targetTime äldre än alla snapshots — använd äldsta tillgängliga
+  // targetTime older than all snapshots — use oldest available.
   return { x: hist[0].x, y: hist[0].y };
+}
+
+function rewoundPosition(targetWs, shooterRtt, shooterInterpMs) {
+  if (!targetWs || !targetWs.playerState) return null;
+  const cur = { x: targetWs.playerState.x, y: targetWs.playerState.y };
+  // v1.701: skippa BARA för bots (rtt 0/undefined → ingen klient-interp). Alla människor
+  // har 60ms interp-delay → behöver rewind även vid låg ping (annars miss på rörliga mål).
+  if (!shooterRtt) return cur;
+  return rewoundFromHistory(cur.x, cur.y, targetWs.playerState._history, shooterRtt, shooterInterpMs);
 }
 
 // Skada enemy server-side (mirror av game.js:5073-5116, utan UI/audio)
@@ -1936,14 +1950,23 @@ function updateBullets(sim, dt, now) {
     const ownerWsForCheese = (b.ownerPid && !sim.heistActive) ? sim.room.members.get(b.ownerPid) : null;
     const ownerPosForCheese = (ownerWsForCheese && ownerWsForCheese.playerState)
       ? { x: ownerWsForCheese.playerState.x, y: ownerWsForCheese.playerState.y } : null;
+    // PvE enemy lag-comp: look up shooter's RTT once per bullet (not per enemy).
+    // _lcRtt truthy  → human shooter with measured RTT  → rewind enemies to shooter's view.
+    // _lcRtt falsy   → bot / turret / companion bullet  → keep live positions (no rewind).
+    const _lcWs    = b.ownerPid ? sim.room.members.get(b.ownerPid) : null;
+    const _lcRtt   = _lcWs && _lcWs._serverRtt;
+    const _lcInterp = _lcWs && _lcWs._clientInterpMs;
     // SPATIAL-HASH: query bara enemies inom ~60px av bullet istället för linear-scan
     // (max enemy-r ≈ 50, max bullet-r ≈ 5 + lag-comp 8 = 63px worst-case).
     const _longRangeIds = ['sniper', 'ak', 'rifle', 'lmg', 'minigun'];
     const _isLong = b.weaponId && _longRangeIds.indexOf(b.weaponId) >= 0;
     // queryR täcker HELA tickens kul-segment (prev→cur) så swept-träffen nedan hittar
     // fiender längs banan även för snabba kulor (annars tunnlar de förbi).
+    // +LAGCOMP_MARGIN when PvE lag-comp is active: enemyGrid holds LIVE positions but
+    // we test against REWOUND positions, so widen the broadphase to catch enemies that
+    // have moved up to ~70px since the rewound timestamp.
     const _segDist = (b._prevX !== undefined) ? Math.hypot(b.x - b._prevX, b.y - b._prevY) : 0;
-    const queryR = (b.r || 4) + 60 + _segDist;
+    const queryR = (b.r || 4) + 60 + _segDist + (_lcRtt ? LAGCOMP_MARGIN : 0);
     // v1.656: queryInto (noll-alloc, återanvänd scratch) istället för getNearby som
     // allokerade en ny array per bullet per tick — största GC-tryck-källan på servern.
     const nearby = sim.enemyGrid ? sim.enemyGrid.queryInto(b.x, b.y, queryR, _bulletQueryScratch) : sim.enemies;
@@ -1961,16 +1984,22 @@ function updateBullets(sim, dt, now) {
       // SWEPT träff: närmaste punkt på tickens kul-segment (prev→cur) mot fiende-
       // cirkeln — så snabba kulor inte TUNNLAR förbi små/snabba fiender mellan ticks
       // ("träffar utan att träffa"). Degenererar till punkt-test för långsamma kulor.
+      // PvE lag-comp: project the bullet against the enemy's REWOUND position (where
+      // the human shooter saw it) rather than the live server position. Bot/turret
+      // bullets (_lcRtt falsy) and enemies without history use live pos unchanged.
+      const _ep = (_lcRtt && e._history && e._history.length)
+        ? rewoundFromHistory(e.x, e.y, e._history, _lcRtt, _lcInterp)
+        : { x: e.x, y: e.y };
       const _px = (b._prevX !== undefined) ? b._prevX : b.x;
       const _py = (b._prevY !== undefined) ? b._prevY : b.y;
       const _sx = b.x - _px, _sy = b.y - _py;
       const _seg2 = _sx * _sx + _sy * _sy;
       let _t = 0;
       if (_seg2 > 0.0001) {
-        _t = ((e.x - _px) * _sx + (e.y - _py) * _sy) / _seg2;
+        _t = ((_ep.x - _px) * _sx + (_ep.y - _py) * _sy) / _seg2;
         _t = _t < 0 ? 0 : (_t > 1 ? 1 : _t);
       }
-      const dx = e.x - (_px + _sx * _t), dy = e.y - (_py + _sy * _t);
+      const dx = _ep.x - (_px + _sx * _t), dy = _ep.y - (_py + _sy * _t);
       const rsum = e.r + b.r + 8;  // +8 lag-kompensation
       if (dx * dx + dy * dy < rsum * rsum) {
         // v2 CD: BOMBER-torn → AoE-blast vid träff (skadar fiender i _cdBlastR med falloff).
@@ -2077,6 +2106,8 @@ module.exports = {
   damageEnemy,
   explode,
   applyBulletEffects,
+  // PvE lag-comp helper: exported for sim-tick-test regression coverage.
+  rewoundFromHistory,
   // v2: exporterad så enemy-rörelsen (room-sim) kan kollidera mot SAMMA cachade
   // wall-lista som kulorna. null i PvP/CD/heist eller utan stageWalls (= V1-vägar
   // exakt orörda).
