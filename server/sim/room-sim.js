@@ -721,7 +721,13 @@ function updateRevive(sim, dt) {
     let reviverPid = null;
     for (const [pid, ws] of sim.room.members) {
       if (pid === peerId) continue;
-      if (ws._isBot) continue; // C150: bots reviver inte (co-op-revive är ett människo-system)
+      // C150 updated (bot-revive fix): bots ARE allowed to revive downed humans.
+      // Only humans ever create deadBodies (bots are skipped at the death-detection
+      // block, ~line 591), so a bot here always revives a human — "bot revives bot"
+      // is structurally impossible. Removing the old gate fixes the permanent
+      // soft-lock: human down + bot(s) alive → no-one revives → stage never ends.
+      // Bots path to the body with desiredDist=30px (inside the 50px revive radius),
+      // so the timer ticks normally once they arrive.
       if (!ws.playerState || ws.playerState.hp <= 0) continue;
       const dx = ws.playerState.x - body.x;
       const dy = ws.playerState.y - body.y;
