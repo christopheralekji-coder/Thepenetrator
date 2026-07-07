@@ -12,6 +12,17 @@ const PORT = process.env.PORT || 8080;
 
 // Healthcheck + error-reporting endpoint
 const SERVER_VERSION = 'v273-account-progress';
+// B4: minsta klient-build som far spela (0 = gaten avstangd). Satts som env
+// nar en protokolandring kraver tvingad uppdatering — gamla klienter far en
+// tydlig "uppdatera"-panel i st.f. frysta/tomma varldar (native V2 = ingen OTA).
+const MIN_SUPPORTED_BUILD = parseInt(process.env.MIN_SUPPORTED_BUILD || '0', 10);
+function buildTooOld(ws, msg) {
+  if (MIN_SUPPORTED_BUILD > 0 && ((msg.build | 0) < MIN_SUPPORTED_BUILD)) {
+    send(ws, { type: 'update_required', minBuild: MIN_SUPPORTED_BUILD });
+    return true;
+  }
+  return false;
+}
 const SERVER_BUILD_AT = new Date().toISOString();
 const errorLog = []; // ring-buffer av senaste 100 client-side errors
 const ERROR_LOG_MAX = 100;
@@ -407,6 +418,7 @@ function handleMessage(ws, msg) {
   if (typeof msg.type === 'string' && (msg.type.startsWith('queue_') || msg.type.startsWith('match_'))) return matchmaker.handle(ws, msg);
   if (typeof msg.type === 'string' && msg.type.startsWith('group_')) return groups.handle(ws, msg);
   if (msg.type === 'host') {
+    if (buildTooOld(ws, msg)) return;
     // C123: släpp ev. kvarvarande matchmaker-ticket/grupp innan vi skapar rum direkt.
     // joinQueue() releasar bara vid re-queue → en köande spelare som hostar/joinar
     // utan queue_cancel lämnar annars en stale ticket kvar (kan dras in i en match
@@ -488,6 +500,7 @@ function handleMessage(ws, msg) {
   }
 
   if (msg.type === 'join') {
+    if (buildTooOld(ws, msg)) return;
     const code = (msg.code || '').toUpperCase().trim();
     const room = rooms.get(code);
     if (!room) { send(ws, { type: 'error', error: 'Rummet finns inte' }); return; }
