@@ -16,6 +16,22 @@ const SERVER_BUILD_AT = new Date().toISOString();
 const errorLog = []; // ring-buffer av senaste 100 client-side errors
 const ERROR_LOG_MAX = 100;
 
+// S8: event-loop-lag-matare — ALLA rums tickar + konto-save + broadcast delar EN
+// loop; driften har fangar det [SLOW-TICK] inte ser (GC-pauser, sync-stringify-
+// stalls, CPU-throttling). EMA + sakta avklingande max (98%/500ms ~ 30s minne).
+let loopLagEmaMs = 0, loopLagMaxMs = 0;
+{
+  let expectedTick = Date.now() + 500;
+  const lagTimer = setInterval(() => {
+    const now = Date.now();
+    const lag = Math.max(0, now - expectedTick);
+    loopLagEmaMs = loopLagEmaMs * 0.8 + lag * 0.2;
+    loopLagMaxMs = Math.max(loopLagMaxMs * 0.98, lag);
+    expectedTick = now + 500;
+  }, 500);
+  if (lagTimer.unref) lagTimer.unref();
+}
+
 // C99: SERVER-AUKTORITATIV survivors-shop-priser. Spegel av klientens
 // SURVIVORS_SHOP_WEAPONS (game.js). Servern litade tidigare på msg.cost från
 // klienten → en manipulerad klient kunde köpa vilket vapen som helst för 0 guld.
@@ -43,7 +59,46 @@ const server = http.createServer((req, res) => {
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
   if (req.method === 'OPTIONS') { res.writeHead(204); res.end(); return; }
 
-  if (req.url === '/health' || req.url === '/') {
+  if (req.url === '/health' || req.url === '/' || req.url.startsWith('/health?')) {
+    // S8: ?verbose=1 -> JSON med per-rum tick-telemetri + minne + loop-lag.
+    // Rumskoder medvetet UTELAMNADE (privata koder ska inte lacka via HTTP).
+    if (req.url.includes('verbose=1')) {
+      const mem = process.memoryUsage();
+      const roomList = [];
+      let tickMsPerSec = 0;
+      for (const [, room] of rooms) {
+        const sim = room.sim;
+        const r = {
+          mode: (room.meta && room.meta.mode) || '?',
+          members: room.members ? room.members.size : 0,
+          started: !!(room.meta && room.meta.started),
+        };
+        if (sim) {
+          r.tickAvg = Math.round((sim._tickMsEMA || 0) * 10) / 10;
+          r.tickMax = Math.round((sim._tickMsMax || 0) * 10) / 10;
+          r.enemies = Array.isArray(sim.enemies) ? sim.enemies.length : 0;
+          r.bullets = Array.isArray(sim.bullets) ? sim.bullets.length : 0;
+          tickMsPerSec += (sim._tickMsEMA || 0) * 60; // 60Hz -> summerad sim-CPU ms/s (quota-headroom)
+        }
+        roomList.push(r);
+      }
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({
+        version: SERVER_VERSION,
+        uptimeSec: Math.round(process.uptime()),
+        rooms: roomList,
+        simMsPerSec: Math.round(tickMsPerSec),
+        loopLag: { emaMs: Math.round(loopLagEmaMs * 10) / 10, maxMs: Math.round(loopLagMaxMs * 10) / 10 },
+        memoryMB: {
+          rss: Math.round(mem.rss / 1048576),
+          heapUsed: Math.round(mem.heapUsed / 1048576),
+          heapTotal: Math.round(mem.heapTotal / 1048576),
+          external: Math.round(mem.external / 1048576),
+        },
+        errorsLogged: errorLog.length,
+      }, null, 1));
+      return;
+    }
     res.writeHead(200, { 'Content-Type': 'text/plain' });
     res.end(`WarParty co-op server\nVersion: ${SERVER_VERSION}\nBuilt: ${SERVER_BUILD_AT}\nRooms: ${rooms.size}\nUptime: ${Math.round(process.uptime())}s\nErrors logged: ${errorLog.length}`);
     return;
