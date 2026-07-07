@@ -73,6 +73,10 @@ const CLIENT_INTERP_DELAY_MS = 60;
 // the broadphase query misses enemies whose live pos is outside queryR but whose
 // rewound pos would have been inside.
 const LAGCOMP_MARGIN = 70;
+// PvE lag-comp: when RTT hasn't been measured yet (first ~1s after connection),
+// use this conservative default so lag-comp is always active for human players.
+// Bots (ws._isBot=true) always get 0 (no lag-comp, no interp).
+const DEFAULT_RTT = 80;
 // v2 (additivt): Godot-klienten renderar remotes med ADAPTIV interp-fördröjning
 // (60-180ms beroende på jitter, Net.gd) — inte V1-webbens fasta 60ms. Den
 // rapporterar sitt aktuella fönster per skott (sim_shoot.interp → ws._clientInterpMs)
@@ -82,12 +86,18 @@ const LAGCOMP_MARGIN = 70;
 // curX/curY = current live position (fallback); hist = [{t,x,y}] oldest→newest.
 // Returns {x,y} at targetTime = now - min(MAX_REWIND_MS, rtt/2 + interp).
 // Falls back to live pos when no rtt or empty history.
-function rewoundFromHistory(curX, curY, hist, shooterRtt, shooterInterpMs) {
+// Optional _fixedTargetTimeMs: when provided, overrides the Date.now()-based calculation.
+// PvE bullets pass b._spawnTime - rtt/2 - interp here so the rewind target stays FIXED
+// at "where the client displayed the enemy when the player fired", rather than advancing
+// at enemy_speed as Date.now() marches forward during the bullet's flight (Issue B fix).
+function rewoundFromHistory(curX, curY, hist, shooterRtt, shooterInterpMs, _fixedTargetTimeMs) {
   if (!shooterRtt) return { x: curX, y: curY };
   const interp = (typeof shooterInterpMs === 'number' && shooterInterpMs > 0)
     ? Math.min(200, shooterInterpMs) : CLIENT_INTERP_DELAY_MS;
   const rewindMs = Math.min(MAX_REWIND_MS, shooterRtt / 2 + interp);
-  const targetTime = Date.now() - rewindMs;
+  const targetTime = (_fixedTargetTimeMs !== undefined)
+    ? _fixedTargetTimeMs
+    : Date.now() - rewindMs;
   if (!hist || hist.length === 0) return { x: curX, y: curY };
   // Linear scan from newest — targetTime is almost always within the last few entries.
   for (let i = hist.length - 1; i >= 0; i--) {
@@ -694,6 +704,10 @@ function spawnPlayerBullets(sim, p, weaponId, params) {
       ownerPid: p.peerId,  // kill-credit
       hitIds: null,
       pierceLeft: (params.pierceCount && !(cheatPen || cheatUlt || w.pierce)) ? params.pierceCount : 0,  // CD overpen
+      // PvE lag-comp Issue B fix: record server time when bullet spawned.
+      // Used in collision check to compute a FIXED rewind target (display time at fire)
+      // instead of Date.now()-based target that advances during bullet flight.
+      _spawnTime: Date.now(),
     });
   }
 }
@@ -1951,11 +1965,23 @@ function updateBullets(sim, dt, now) {
     const ownerPosForCheese = (ownerWsForCheese && ownerWsForCheese.playerState)
       ? { x: ownerWsForCheese.playerState.x, y: ownerWsForCheese.playerState.y } : null;
     // PvE enemy lag-comp: look up shooter's RTT once per bullet (not per enemy).
-    // _lcRtt truthy  → human shooter with measured RTT  → rewind enemies to shooter's view.
-    // _lcRtt falsy   → bot / turret / companion bullet  → keep live positions (no rewind).
+    // _lcRtt truthy  → human shooter → rewind enemies to shooter's view.
+    // _lcRtt falsy/0 → bot / turret / companion bullet → keep live positions (no rewind).
+    // Issue A fix: when _serverRtt is null (first ~1s before ping/pong completes),
+    // use DEFAULT_RTT=80 for human players instead of falling through to no-rewind.
+    // Bot WS objects have _isBot=true and never set _serverRtt → correctly get 0 here.
     const _lcWs    = b.ownerPid ? sim.room.members.get(b.ownerPid) : null;
-    const _lcRtt   = _lcWs && _lcWs._serverRtt;
+    const _lcRtt   = _lcWs ? (_lcWs._serverRtt || (_lcWs._isBot ? 0 : DEFAULT_RTT)) : 0;
     const _lcInterp = _lcWs && _lcWs._clientInterpMs;
+    // Issue B fix: pin rewind target to "when the player fired" (b._spawnTime - RTT/2 - interp)
+    // so the rewound position stays FIXED at the displayed enemy position at fire time,
+    // rather than advancing forward as Date.now() marches during bullet flight.
+    // Without this: rewindTarget advances at enemy_speed alongside live pos → bullet
+    // must chase both, effectively the same hit delay as no lag-comp for fast enemies.
+    const _lcInterp_ms = (_lcInterp > 0) ? _lcInterp : CLIENT_INTERP_DELAY_MS;
+    const _lcTargetTime = (b._spawnTime && _lcRtt)
+        ? b._spawnTime - Math.floor(_lcRtt / 2) - _lcInterp_ms
+        : undefined;
     // SPATIAL-HASH: query bara enemies inom ~60px av bullet istället för linear-scan
     // (max enemy-r ≈ 50, max bullet-r ≈ 5 + lag-comp 8 = 63px worst-case).
     const _longRangeIds = ['sniper', 'ak', 'rifle', 'lmg', 'minigun'];
@@ -1987,8 +2013,9 @@ function updateBullets(sim, dt, now) {
       // PvE lag-comp: project the bullet against the enemy's REWOUND position (where
       // the human shooter saw it) rather than the live server position. Bot/turret
       // bullets (_lcRtt falsy) and enemies without history use live pos unchanged.
+      // _lcTargetTime pins the rewind to fire-time (Issue B fix: no more chasing).
       const _ep = (_lcRtt && e._history && e._history.length)
-        ? rewoundFromHistory(e.x, e.y, e._history, _lcRtt, _lcInterp)
+        ? rewoundFromHistory(e.x, e.y, e._history, _lcRtt, _lcInterp, _lcTargetTime)
         : { x: e.x, y: e.y };
       const _px = (b._prevX !== undefined) ? b._prevX : b.x;
       const _py = (b._prevY !== undefined) ? b._prevY : b.y;
