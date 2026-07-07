@@ -2429,6 +2429,19 @@ main{padding:14px 16px 40px;max-width:920px;margin:0 auto}
 @keyframes tin{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}
 @media(max-width:560px){.stats{grid-template-columns:repeat(3,1fr)}.stat:nth-child(4),.stat:nth-child(5){display:none}
  .brand h1{font-size:15px}.grid{grid-template-columns:1fr}}
+/* agar-sektioner: serverstatus + rapporter */
+.ownbox{max-width:1060px;margin:0 auto 14px;padding:0 16px}
+.owncard{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);padding:14px 16px;box-shadow:var(--sh)}
+.ownhead{font-weight:700;letter-spacing:.06em;font-size:12px;color:var(--gold);display:flex;gap:10px;align-items:baseline;flex-wrap:wrap}
+.ownsub{color:var(--mut);font-weight:400;letter-spacing:0}
+.ownbody{margin-top:10px}
+.srow{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px}
+.spill{background:var(--panel2);border:1px solid var(--line);border-radius:99px;padding:5px 11px;font-size:12px;color:var(--txt)}
+.otab{width:100%;border-collapse:collapse;font-size:12.5px}
+.otab th{color:var(--mut);text-align:left;font-weight:600;padding:5px 8px;border-bottom:1px solid var(--line)}
+.otab td{padding:6px 8px;border-bottom:1px solid var(--line)}
+.omut{color:var(--mut2);font-size:12.5px}
+.obtn{padding:5px 10px;font-size:12px;background:var(--panel2);border:1px solid var(--line2)}
 </style></head><body>
 
 <div id="login"><div class="card">
@@ -2460,6 +2473,14 @@ main{padding:14px 16px 40px;max-width:920px;margin:0 auto}
    <button class="rf" id="refresh" title="Uppdatera">&#8635;</button>
   </div>
  </header>
+ <section class="ownbox"><div class="owncard">
+  <div class="ownhead">SERVERSTATUS <span class="ownsub" id="srvsub">laddar…</span></div>
+  <div class="ownbody" id="srvbody"></div>
+ </div></section>
+ <section class="ownbox"><div class="owncard">
+  <div class="ownhead">RAPPORTER <span class="ownsub" id="repsub"></span></div>
+  <div class="ownbody" id="repbody"></div>
+ </div></section>
  <main><div class="grid" id="grid"></div><div class="empty hide" id="empty"><div class="big">&#128100;</div>Inga spelare matchar</div></main>
 </div>
 
@@ -2489,17 +2510,74 @@ $("lbtn").onclick=function(){TOK=$("ltok").value.trim();if(!TOK)return;boot(true
 $("ltok").addEventListener("keydown",function(e){if(e.key==="Enter")$("lbtn").click()});
 $("logout").onclick=function(){TOK="";sessionStorage.removeItem("wpadmin");$("app").classList.add("hide");$("login").classList.remove("hide");$("ltok").value=""};
 function boot(fromLogin){load(function(ok){
- if(ok){sessionStorage.setItem("wpadmin",TOK);$("login").classList.add("hide");$("app").classList.remove("hide")}
+ if(ok){sessionStorage.setItem("wpadmin",TOK);$("login").classList.add("hide");$("app").classList.remove("hide");loadStatus();loadReports()}
  else if(fromLogin){$("lerr").textContent="Fel token";}
  else{$("login").classList.remove("hide");$("app").classList.add("hide")}
 })}
+
+/* SERVERSTATUS (publik /health?verbose=1 pa SAMMA host som panelen = ratt region) */
+function loadStatus(){
+ fetch("/health?verbose=1").then(function(r){return r.json()}).then(function(d){
+  $("srvsub").textContent=d.version+" \u00b7 uptime "+(Math.round(d.uptimeSec/360)/10)+"h \u00b7 "+d.rooms.length+" rum";
+  var b=$("srvbody");b.textContent="";
+  var top=el("div","srow");
+  var lag=el("span","spill","Loop-lag: "+d.loopLag.emaMs+" ms (max "+d.loopLag.maxMs+")");
+  if(d.loopLag.emaMs>20)lag.style.color="var(--danger)";
+  top.appendChild(el("span","spill","Sim-CPU: "+fmt(d.simMsPerSec)+" ms/s"));
+  top.appendChild(lag);
+  top.appendChild(el("span","spill","Heap: "+d.memoryMB.heapUsed+"/"+d.memoryMB.heapTotal+" MB \u00b7 RSS "+d.memoryMB.rss));
+  top.appendChild(el("span","spill","Fel loggade: "+fmt(d.errorsLogged)));
+  b.appendChild(top);
+  if(d.rooms.length){
+   var tb=el("table","otab");var hr=el("tr");
+   ["L\u00e4ge","Spelare","Ig\u00e5ng","Tick avg","Tick max","Fiender","Kulor"].forEach(function(h){hr.appendChild(el("th",null,h))});
+   tb.appendChild(hr);
+   d.rooms.forEach(function(r){var w=el("tr");
+    var cells=[r.mode,r.members,(r.started?"ja":"lobby"),
+     (r.tickAvg!=null?r.tickAvg+" ms":"\u2013"),(r.tickMax!=null?r.tickMax+" ms":"\u2013"),
+     (r.enemies!=null?r.enemies:"\u2013"),(r.bullets!=null?r.bullets:"\u2013")];
+    cells.forEach(function(v,i){var td=el("td",null,String(v));
+     if(i===3&&r.tickAvg>8)td.style.color="var(--danger)";
+     if(i===4&&r.tickMax>50)td.style.color="var(--danger)";
+     w.appendChild(td)});
+    tb.appendChild(w)});
+   b.appendChild(tb);
+  }else{b.appendChild(el("div","omut","Inga aktiva rum just nu."))}
+ }).catch(function(){$("srvsub").textContent="kunde inte h\u00e4mta status";});
+}
+setInterval(function(){if(TOK&&!$("app").classList.contains("hide"))loadStatus()},15000);
+
+/* RAPPORTER (moderations-kon fran spelarnas RAPPORTERA-knapp) */
+var REASON_SV={cheating:"Fusk",bad_name:"Kr\u00e4nkande namn",harassment:"Trakasserier",other:"Annat"};
+function loadReports(){
+ fetch("/admin/api/reports?limit=100",{headers:hdr()}).then(function(r){return r.json()}).then(function(d){
+  var list=(d&&d.reports)||[];
+  $("repsub").textContent=fmt(d.total||0)+" totalt";
+  var b=$("repbody");b.textContent="";
+  if(!list.length){b.appendChild(el("div","omut","Inga rapporter \u00e4nnu \u2014 k\u00f6n \u00e4r tom."));return}
+  var tb=el("table","otab");var hr=el("tr");
+  ["N\u00e4r","Rapport\u00f6r","M\u00e5l","Orsak","L\u00e4ge",""].forEach(function(h){hr.appendChild(el("th",null,h))});
+  tb.appendChild(hr);
+  list.forEach(function(rp){var w=el("tr");
+   w.appendChild(el("td",null,ago(rp.t)));
+   w.appendChild(el("td",null,(rp.fromName||"?")+" ("+(rp.from||"?")+")"));
+   w.appendChild(el("td",null,(rp.targetName||"?")+" ("+(rp.target||"?")+")"));
+   w.appendChild(el("td",null,REASON_SV[rp.reason]||String(rp.reason||"?")));
+   w.appendChild(el("td",null,String(rp.mode||"\u2013")));
+   var td=el("td");var btn=el("button","obtn","\u00d6ppna m\u00e5l");
+   btn.onclick=function(){$("q").value=String(rp.target||"");load()};
+   td.appendChild(btn);w.appendChild(td);
+   tb.appendChild(w)});
+  b.appendChild(tb);
+ }).catch(function(){$("repsub").textContent="kunde inte h\u00e4mta";});
+}
 
 /* LOAD */
 var _t;
 $("q").addEventListener("input",function(){clearTimeout(_t);_t=setTimeout(function(){load()},220)});
 $("sort").addEventListener("change",render);
  $("flagf").addEventListener("click",function(){FLAGONLY=!FLAGONLY;$("flagf").classList.toggle("act",FLAGONLY);render()});
-$("refresh").onclick=function(){load(function(){toast("Uppdaterad","ok")})};
+$("refresh").onclick=function(){load(function(){toast("Uppdaterad","ok")});loadStatus();loadReports()};
 function load(cb){
  fetch("/admin/api/players?q="+encodeURIComponent($("q").value||""),{headers:hdr()}).then(function(r){
   if(r.status===200)return r.json();
