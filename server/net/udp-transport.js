@@ -75,12 +75,21 @@ function unrelPkt(session, pktSeq, fragIdx, fragCount, payload) {
   h.writeUInt16LE(fragCount, 11);
   return payload.length ? Buffer.concat([h, payload]) : h;
 }
-function ackPkt(session, ackBase, ackBits) {
-  const b = Buffer.allocUnsafe(13);
+// S4: ACK utokad 13->25B med 3 extra bitmap-ord -> selective-ack-fonster 32->128
+// frags. Stora reliable-msg (br_started ~82 frags) haller 20-48 i flight; med
+// 32-fonstret kunde mottagna frags bortom ackBase+31 inte kvitteras vid en tidig
+// lucka -> RTO-omsandning av ~50 redan-mottagna frags (~55KB spuriost) per
+// forlust. MIXED-VERSION-SAKERT: parsern ar langd-gated (gamla 13B-ACKs = 0 i
+// extra-orden = exakt gamla beteendet), gamla parsers ignorerar svansen.
+function ackPkt(session, ackBase, w0, w1, w2, w3) {
+  const b = Buffer.allocUnsafe(25);
   b[0] = T.ACK;
   b.writeUInt32LE(session >>> 0, 1);
   b.writeUInt32LE(ackBase >>> 0, 5);
-  b.writeUInt32LE(ackBits >>> 0, 9);
+  b.writeUInt32LE(w0 >>> 0, 9);
+  b.writeUInt32LE(w1 >>> 0, 13);
+  b.writeUInt32LE(w2 >>> 0, 17);
+  b.writeUInt32LE(w3 >>> 0, 21);
   return b;
 }
 function ctrlPkt(type, session) {
@@ -233,17 +242,22 @@ class Connection extends EventEmitter {
   }
 
   _sendAck() {
-    let bits = 0;
-    for (let i = 1; i < 32; i++) {
-      if (this._recvWin.has((this._recvExpected + i) >>> 0)) bits |= (1 << i);
+    const w = [0, 0, 0, 0];
+    for (let i = 1; i < 128; i++) {
+      if (this._recvWin.has((this._recvExpected + i) >>> 0)) w[i >> 5] |= (1 << (i & 31));
     }
-    this._sendRaw(ackPkt(this.session, this._recvExpected, bits >>> 0));
+    this._sendRaw(ackPkt(this.session, this._recvExpected, w[0], w[1], w[2], w[3]));
   }
 
   _onAck(buf) {
     if (buf.length < 13) return;                                                 // C241: längd-guard
     const ackBase = buf.readUInt32LE(5);
-    const ackBits = buf.readUInt32LE(9);
+    // S4: langd-gated parse av upp till 4 bitmap-ord (gamla peers skickar 13B = 1 ord)
+    const w0 = buf.readUInt32LE(9);
+    const w1 = buf.length >= 17 ? buf.readUInt32LE(13) : 0;
+    const w2 = buf.length >= 21 ? buf.readUInt32LE(17) : 0;
+    const w3 = buf.length >= 25 ? buf.readUInt32LE(21) : 0;
+    const words = [w0, w1, w2, w3];
     const now = Date.now();
     for (const [relSeq, e] of this._unacked) {
       let acked = false;
@@ -251,7 +265,7 @@ class Connection extends EventEmitter {
       if (((relSeq - ackBase) >>> 0) >= 0x80000000 || relSeq < ackBase) acked = true;
       else {
         const off = (relSeq - ackBase) >>> 0;
-        if (off < 32 && (ackBits & (1 << off))) acked = true;
+        if (off < 128 && (words[off >> 5] & (1 << (off & 31)))) acked = true;
       }
       if (acked) {
         if (e.sends === 1) {                // Karn: RTT bara från ej-omsända frags
