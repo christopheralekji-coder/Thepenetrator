@@ -24,6 +24,7 @@ const ACCOUNTS_SUBDIR = path.join(DATA_DIR, 'accounts'); // per-konto-filer (DEL
 
 const FRIENDS_CAP = 100;
 const REQUESTS_CAP = 50;
+const BLOCKED_CAP = 200;   // B2 (Apple 1.2): max blockade konton per konto
 const UPDATE_THROTTLE_MS = 1000; // max 1 friends_update/s per mottagare
 
 const accounts = new Map(); // id → { id, secret, name, avatar, stats, level, friends:[], reqIn:[], reqOut:[], lastSeen,
@@ -323,7 +324,8 @@ function mergeVaultOwned(oldV, newV) {
   return out;
 }
 
-function sanitizeFriendIds(raw, selfId) {
+function sanitizeFriendIds(raw, selfId, cap) {
+  const lim = cap || FRIENDS_CAP;   // B2: blocked-listan använder BLOCKED_CAP (200)
   const out = [];
   if (!Array.isArray(raw)) return out;
   for (const v of raw) {
@@ -332,7 +334,7 @@ function sanitizeFriendIds(raw, selfId) {
     if (id === selfId) continue;
     if (out.includes(id)) continue;
     out.push(id);
-    if (out.length >= FRIENDS_CAP) break;
+    if (out.length >= lim) break;
   }
   return out;
 }
@@ -366,6 +368,7 @@ function _loadAccountFromRaw(a) {
     friends: sanitizeFriendIds(a.friends, a.id),
     reqIn: sanitizeFriendIds(a.reqIn, a.id).slice(0, REQUESTS_CAP),
     reqOut: sanitizeFriendIds(a.reqOut, a.id).slice(0, REQUESTS_CAP),
+    blocked: sanitizeFriendIds(a.blocked, a.id, BLOCKED_CAP),   // B2: konto-ids DETTA konto blockerat
     lastSeen: +a.lastSeen || 0,
     vault: (a.vault && typeof a.vault === 'object') ? a.vault : null,
     referredBy: (typeof a.referredBy === 'string') ? a.referredBy : '',
@@ -547,6 +550,7 @@ function markDeleted(id) {
 
 process.on('SIGTERM', () => {
   try { saveNowSync(); } catch (e) {}
+  try { saveReportsSync(); } catch (e) {}   // B2: flusha rapport-buffern före exit
   process.exit(0);
 });
 
@@ -778,7 +782,7 @@ function resolveAccountFromCreds(msg, ip) {
       id, secret,
       name: 'Spelare', avatar: {},
       stats: { matches: 0, kills: 0, wins: 0 }, level: 1,
-      friends: [], reqIn: [], reqOut: [],
+      friends: [], reqIn: [], reqOut: [], blocked: [],
       lastSeen: Date.now(),
     };
     accounts.set(id, acc);
@@ -831,6 +835,7 @@ function loginPayload(acc) {
     friends: buildFriendsList(acc),
     requests,
     sentRequests: acc.reqOut.slice(),
+    blocked: Array.isArray(acc.blocked) ? acc.blocked.slice() : [],   // B2: klient-spegel av blockerings-listan
     bound: boundOf(acc),
     stats: acc.stats,
     vault: acc.vault || null,
@@ -1130,6 +1135,8 @@ function handleFriendRequest(ws, msg) {
   if (toId === me.id) { sendErr(ws, 'self'); return; }
   const target = accounts.get(toId);
   if (!target) { sendErr(ws, 'notfound'); return; }
+  // B2: målet har BLOCKERAT avsändaren → droppa TYST men svara ok (blockeraren avslöjas inte)
+  if (isBlockedBy(target, me.id)) { sendOk(ws, 'request'); return; }
   if (me.friends.includes(toId)) { sendErr(ws, 'already'); return; }
   if (me.reqOut.includes(toId) || target.reqIn.includes(me.id)) { sendErr(ws, 'already'); return; }
   if (me.friends.length >= FRIENDS_CAP || target.friends.length >= FRIENDS_CAP) { sendErr(ws, 'full'); return; }
@@ -1200,6 +1207,8 @@ function handleInvite(ws, msg) {
   if (!me) { sendErr(ws, 'auth'); return; }
   const toId = String(msg.toId || '').trim();
   if (!me.friends.includes(toId)) { sendErr(ws, 'notfriend'); return; }
+  // B2: målet har BLOCKERAT avsändaren → droppa game-inviten tyst (fejkad ok)
+  if (isBlockedBy(accounts.get(toId), me.id)) { sendOk(ws, 'invite'); return; }
   const tws = online.get(toId);
   if (!tws) { sendErr(ws, 'offline'); return; }
   const ri = H.roomInfo(ws);
@@ -1589,7 +1598,7 @@ function createProviderAccount(fields) {
     secret: crypto.randomBytes(24).toString('hex'),
     name: 'Spelare', avatar: {},
     stats: { matches: 0, kills: 0, wins: 0 }, level: 1,
-    friends: [], reqIn: [], reqOut: [],
+    friends: [], reqIn: [], reqOut: [], blocked: [],
     lastSeen: Date.now(),
   };
   Object.assign(acc, fields || {});
@@ -1755,6 +1764,157 @@ function handleReferral(ws, msg) {
   if (rws) H.send(rws, { type: 'acct_referral_credit', amount: 150 });
 }
 
+// ════════════════════════════════════════════════════════════════════════════
+// B1/B2 (App Store-blockerare 2026-07-07): kontoradering i appen (Apple
+// 5.1.1(v)) + rapportera/blockera spelare (Apple 1.2). Allt additivt (nya
+// acct_*-typer) — gamla klienter skickar dem aldrig → no-op.
+// ════════════════════════════════════════════════════════════════════════════
+
+// ── B2: blockerings-lista (acc.blocked = array av konto-ids, cap BLOCKED_CAP) ─
+function isBlockedBy(acc, byId) {
+  return !!(acc && Array.isArray(acc.blocked) && acc.blocked.includes(String(byId)));
+}
+// Helper åt ANDRA lager (groups.js via server.js setHelpers): har target blockerat
+// avsändaren? H-fri (får inte kräva att ett acct_-meddelande setat H).
+function isBlockedPair(targetAccountId, fromAccountId) {
+  return isBlockedBy(accounts.get(String(targetAccountId || '')), fromAccountId);
+}
+
+function handleBlock(ws, msg) {
+  const me = getMe(ws);
+  if (!me) { sendErr(ws, 'auth'); return; }
+  const id = String(msg.targetAcct || '').trim();
+  if (!/^[0-9]{1,16}$/.test(id) || id === me.id) { sendErr(ws, 'invalid'); return; }
+  if (!Array.isArray(me.blocked)) me.blocked = [];
+  if (!me.blocked.includes(id)) {
+    if (me.blocked.length >= BLOCKED_CAP) { sendErr(ws, 'full'); return; }
+    me.blocked.push(id);
+    // städa väntande förfrågningar mellan parterna — en blockad ska inte ligga kvar i reqIn
+    const other = accounts.get(id);
+    arrRemove(me.reqIn, id);
+    arrRemove(me.reqOut, id);
+    if (other) {
+      arrRemove(other.reqIn, me.id);
+      arrRemove(other.reqOut, me.id);
+      markDirty(other.id);
+    }
+    markDirty(me.id);
+    console.log('[ACCT] block', me.id, '→', id);
+  }
+  // svara med auktoritativ lista (klienten speglar den i Account.blocked)
+  sendOk(ws, 'block', { blocked: me.blocked.slice() });
+}
+
+function handleUnblock(ws, msg) {
+  const me = getMe(ws);
+  if (!me) { sendErr(ws, 'auth'); return; }
+  const id = String(msg.targetAcct || '').trim();
+  if (!/^[0-9]{1,16}$/.test(id)) { sendErr(ws, 'invalid'); return; }
+  if (Array.isArray(me.blocked) && me.blocked.includes(id)) {
+    arrRemove(me.blocked, id);
+    markDirty(me.id);
+    console.log('[ACCT] unblock', me.id, '→', id);
+  }
+  sendOk(ws, 'unblock', { blocked: Array.isArray(me.blocked) ? me.blocked.slice() : [] });
+}
+
+// ── B2: spelar-rapporter — ring-buffer i reports.json (admin-panelen läser) ──
+const REPORTS_FILE = path.join(DATA_DIR, 'reports.json');
+const REPORTS_CAP = 2000;                    // äldsta trimmas (ring-buffer)
+const REPORT_WINDOW_MS = 10 * 60 * 1000;     // rate-limit-fönster
+const REPORT_MAX_PER_WINDOW = 5;             // max rapporter per konto per fönster
+const REPORT_REASONS = new Set(['cheating', 'bad_name', 'harassment', 'other']);
+let _reports = [];
+let _reportsSaveTimer = null;
+try {
+  if (fs.existsSync(REPORTS_FILE)) {
+    const _rraw = JSON.parse(fs.readFileSync(REPORTS_FILE, 'utf8'));
+    if (Array.isArray(_rraw)) _reports = _rraw.slice(-REPORTS_CAP);
+  }
+} catch (e) { console.warn('[ACCT] reports.json oläslig —', e.message); }
+
+function saveReportsSoon() {
+  if (_reportsSaveTimer) return;   // debounce 3s (samma rytm som konto-saven)
+  _reportsSaveTimer = setTimeout(() => { _reportsSaveTimer = null; saveReportsNow(); }, 3000);
+}
+function saveReportsNow() {
+  // atomisk tmp+rename (samma mönster som per-konto-filerna)
+  try { fs.mkdirSync(DATA_DIR, { recursive: true }); } catch (e) {}
+  const tmp = REPORTS_FILE + '.tmp';
+  fs.writeFile(tmp, JSON.stringify(_reports), (err) => {
+    if (err) { console.warn('[ACCT] reports skriv-fel —', err.message); return; }
+    fs.rename(tmp, REPORTS_FILE, (err2) => { if (err2) console.warn('[ACCT] reports rename-fel —', err2.message); });
+  });
+}
+function saveReportsSync() {
+  // BARA vid shutdown (SIGTERM) — async hinner inte före exit
+  if (_reportsSaveTimer) { clearTimeout(_reportsSaveTimer); _reportsSaveTimer = null; }
+  try {
+    fs.mkdirSync(DATA_DIR, { recursive: true });
+    const tmp = REPORTS_FILE + '.tmp';
+    fs.writeFileSync(tmp, JSON.stringify(_reports));
+    fs.renameSync(tmp, REPORTS_FILE);
+  } catch (e) { console.warn('[ACCT] reports sync-save misslyckades —', e.message); }
+}
+
+// rate-limit: max REPORT_MAX_PER_WINDOW rapporter / konto / 10 min (samma
+// token-bucket-mönster som konto-skapandet, men keyat på konto-id)
+const _reportBucket = new Map(); // accountId → { count, windowStart }
+setInterval(() => {
+  const now = Date.now();
+  for (const [id, b] of _reportBucket) { if (now - b.windowStart >= REPORT_WINDOW_MS * 2) _reportBucket.delete(id); }
+}, REPORT_WINDOW_MS).unref();
+function reportAllowed(accountId) {
+  const now = Date.now();
+  const b = _reportBucket.get(accountId) || { count: 0, windowStart: now };
+  if (now - b.windowStart >= REPORT_WINDOW_MS) { b.count = 0; b.windowStart = now; }
+  if (b.count >= REPORT_MAX_PER_WINDOW) { _reportBucket.set(accountId, b); return false; }
+  b.count++;
+  _reportBucket.set(accountId, b);
+  return true;
+}
+
+function handleReport(ws, msg) {
+  const me = getMe(ws);
+  if (!me) { sendErr(ws, 'auth'); return; }
+  const target = String(msg.targetAcct || '').trim();
+  if (!/^[0-9]{1,16}$/.test(target) || target === me.id) { sendErr(ws, 'invalid'); return; }
+  if (!reportAllowed(me.id)) { sendErr(ws, 'ratelimited'); return; }
+  const tAcc = accounts.get(target);
+  const reason = REPORT_REASONS.has(msg.reason) ? msg.reason : 'other';
+  _reports.push({
+    t: Date.now(),
+    from: me.id, fromName: me.name,
+    target, targetName: tAcc ? tAcc.name : '',
+    reason,
+    roomCode: String(msg.roomCode || '').slice(0, 12),
+    mode: String(msg.mode || '').slice(0, 24),
+  });
+  if (_reports.length > REPORTS_CAP) _reports = _reports.slice(-REPORTS_CAP);   // trimma äldsta
+  saveReportsSoon();
+  console.log('[ACCT] report', me.id, '→', target, '(' + reason + ')');
+  sendOk(ws, 'report');
+}
+
+// ── B1: SJÄLV-RADERING av kontot (Apple 5.1.1(v)) ────────────────────────────
+// Autentiserad som det INLOGGADE kontot (getMe — samma auth-mönster som
+// acct_update; ingen kan radera någon annans konto). Bekräftelsen (acct_deleted)
+// skickas FÖRE raderingen så klienten garanterat får den innan socketen ev.
+// stängs. Vault ligger i konto-objektet → raderas med kontofilen; vän-/block-
+// referenser städas i deleteAccountCore (delad med admin-panelens delete).
+function handleAccountDelete(ws) {
+  const me = getMe(ws);
+  if (!me) { sendErr(ws, 'auth'); return; }
+  const id = me.id;
+  const friendIds = Array.isArray(me.friends) ? me.friends.slice() : [];
+  console.log('[ACCT] self-delete', id, '(', me.name, ')');
+  H.send(ws, { type: 'acct_deleted', id });   // bekräftelse INNAN socketen får stängas
+  deleteAccountCore(id);
+  ws.accountId = null;   // socketen obunden — nästa acct_login skapar ett nytt gäst-konto
+  // online-vänner ser kontot försvinna direkt (deras listor är redan städade + dirty)
+  for (const fid of friendIds) { if (online.has(fid)) scheduleFriendsUpdate(fid); }
+}
+
 function handle(ws, msg, helpers) {
   if (helpers) H = helpers;
   if (!H) return;
@@ -1771,6 +1931,11 @@ function handle(ws, msg, helpers) {
     case 'acct_invite': handleInvite(ws, msg); return;
     case 'acct_leaderboard': handleLeaderboard(ws, msg); return;
     case 'acct_referral': handleReferral(ws, msg); return;
+    // B1/B2 (App Store-krav): radera konto + rapportera/blockera spelare
+    case 'acct_delete': handleAccountDelete(ws); return;
+    case 'acct_report': handleReport(ws, msg); return;
+    case 'acct_block': handleBlock(ws, msg); return;
+    case 'acct_unblock': handleUnblock(ws, msg); return;
     // Bind-lagret (async-handlers sköter sina fel själva — fire-and-forget)
     case 'acct_email_bind': handleEmailBind(ws, msg); return;
     case 'acct_email_login': handleEmailLogin(ws, msg); return;
@@ -1931,12 +2096,12 @@ function adminSetName(id, name) {
   return adminPlayerRow(acc);
 }
 
-function adminDeleteAccount(id) {
-  if (!/^[0-9]{1,16}$/.test(String(id))) return false;
+// DELAD raderings-kärna (admin-panelens delete + själv-raderingen acct_delete):
+// sessioner, online-map, provider-index, vän-/block-referenser, fil (markDeleted).
+// Anroparen sköter kick/bekräftelse-svar själv.
+function deleteAccountCore(id) {
   const acc = accounts.get(String(id));
   if (!acc) return false;
-  acc.banned = true;   // stäng reconnect-fönstret mellan kick och delete (bindSocketToAccount avvisar)
-  adminKickSocket(acc.id, 'deleted');
   revokeSessionsFor(acc.id);
   online.delete(acc.id);
   // reversera provider-index (indexAccount) så stale uppslag inte pekar på raderat konto
@@ -1944,20 +2109,33 @@ function adminDeleteAccount(id) {
   if (acc.googleSub) googleIdx.delete(acc.googleSub);
   if (acc.appleSub) appleIdx.delete(acc.appleSub);
   if (acc.gcPlayerId) gcIdx.delete(acc.gcPlayerId);
-  // rensa kvarvarande referenser ur andras vän-/förfrågnings-listor (annars spök-vänskap
-  // om ett nytt konto senare får samma id); markera berörda konton dirty
+  // rensa kvarvarande referenser ur andras vän-/förfrågnings-/block-listor (annars spök-
+  // vänskap om ett nytt konto senare får samma id); markera berörda konton dirty
   for (const other of accounts.values()) {
     if (other.id === acc.id) continue;
     const fl = other.friends.length, rl = other.reqIn.length, ol = other.reqOut.length;
+    const bl = Array.isArray(other.blocked) ? other.blocked.length : 0;
     arrRemove(other.friends, acc.id);
     arrRemove(other.reqIn, acc.id);
     arrRemove(other.reqOut, acc.id);
-    if (other.friends.length !== fl || other.reqIn.length !== rl || other.reqOut.length !== ol) markDirty(other.id);
+    if (Array.isArray(other.blocked)) arrRemove(other.blocked, acc.id);
+    if (other.friends.length !== fl || other.reqIn.length !== rl || other.reqOut.length !== ol
+        || (Array.isArray(other.blocked) && other.blocked.length !== bl)) markDirty(other.id);
   }
   accounts.delete(acc.id);
   markDeleted(acc.id);
-  console.log('[ADMIN] delete', id, '(', acc.name, ')');
   return true;
+}
+
+function adminDeleteAccount(id) {
+  if (!/^[0-9]{1,16}$/.test(String(id))) return false;
+  const acc = accounts.get(String(id));
+  if (!acc) return false;
+  acc.banned = true;   // stäng reconnect-fönstret mellan kick och delete (bindSocketToAccount avvisar)
+  adminKickSocket(acc.id, 'deleted');
+  const ok = deleteAccountCore(acc.id);
+  console.log('[ADMIN] delete', id, '(', acc.name, ')');
+  return ok;
 }
 
 // ENGÅNGS-STÄDNING av historiska spök-konton (tomma "Spelare" från dubbelkonto-buggen).
@@ -2048,6 +2226,12 @@ async function handleAdminHttp(req, res) {
 
   if (req.method === 'GET' && path === '/admin/api/players') {
     _adminJson(res, 200, { players: adminListPlayers(u.searchParams.get('q')), summary: adminSummary() });
+    return;
+  }
+  // B2: spelar-rapporter (senaste först). ?limit=N (default 200, max REPORTS_CAP).
+  if (req.method === 'GET' && path === '/admin/api/reports') {
+    const lim = Math.max(1, Math.min(REPORTS_CAP, parseInt(u.searchParams.get('limit'), 10) || 200));
+    _adminJson(res, 200, { total: _reports.length, reports: _reports.slice(-lim).reverse() });
     return;
   }
   if (req.method === 'POST' && path === '/admin/api/ban') {
@@ -2462,7 +2646,7 @@ function postJSON(url,body,cb){fetch(url,{method:"POST",headers:hdr(),body:JSON.
  return r.json().then(function(j){cb(r.ok,j)}).catch(function(){cb(r.ok,{})})}).catch(function(){cb(false,{})})}
 </script></body></html>`;
 
-module.exports = { handle, onDisconnect, presenceChanged, handleGoogleRedirect, handleGoogleCallback, handleSessionHttp, wsForAccount, handleAdminHttp, creditMatchEndXp,
+module.exports = { handle, onDisconnect, presenceChanged, handleGoogleRedirect, handleGoogleCallback, handleSessionHttp, wsForAccount, handleAdminHttp, creditMatchEndXp, isBlockedPair,
   // Test/debug-hook (används i verifierings-skript, EJ i produktionskod)
   _flush: function(cb) {
     if (_pendingWrites === 0 && !_dirty && _dirtySet.size === 0 && _deletedSet.size === 0) { cb(); return; }

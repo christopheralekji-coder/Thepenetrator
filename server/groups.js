@@ -57,6 +57,9 @@ function invite(ws, toId) {
     for (const [aid, ts] of g.invited) { if ((now - ts) >= INVITE_TTL_MS) g.invited.delete(aid); }
     if (g.invited.size >= MAX_INVITED) { send(ws, { type: 'group_error', code: 'toomanyinvites' }); return; }
   }
+  // B2 (Apple 1.2): målet har BLOCKERAT inbjudaren → droppa tyst (ingen felkod,
+  // blockeraren avslöjas inte — ser ut som en skickad inbjudan)
+  if (H.isBlocked && H.isBlocked(toId, ws.accountId)) { ws._lastInvite = now; return; }
   const target = H.wsForAccount(toId);
   if (!target) { send(ws, { type: 'group_error', code: 'offline' }); return; }
   g.invited.set(toId, now);

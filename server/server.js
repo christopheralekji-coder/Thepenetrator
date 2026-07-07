@@ -2621,7 +2621,7 @@ function handleDisconnect(ws) {
 // AUDIT C312: matchmakern behöver presenceChanged + broadcastPublicRooms för att
 // vänner ska se matchmade spelare som 'i match' (ej fast i 'lobby' med stale kod).
 matchmaker.setHelpers({ send, rooms, createSim, startSim, generateCode, presenceChanged: accounts.presenceChanged, broadcastPublicRooms });
-groups.setHelpers({ send, wsForAccount: accounts.wsForAccount });
+groups.setHelpers({ send, wsForAccount: accounts.wsForAccount, isBlocked: accounts.isBlockedPair }); // B2: droppa grupp-invites blockad→blockerare
 
 server.listen(PORT, () => {
   console.log('â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•');
