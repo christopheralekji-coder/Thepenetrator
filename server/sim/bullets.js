@@ -115,13 +115,25 @@ function rewoundFromHistory(curX, curY, hist, shooterRtt, shooterInterpMs, _fixe
   return { x: hist[0].x, y: hist[0].y };
 }
 
-function rewoundPosition(targetWs, shooterRtt, shooterInterpMs) {
+function rewoundPosition(targetWs, shooterRtt, shooterInterpMs, fixedTimeMs) {
   if (!targetWs || !targetWs.playerState) return null;
   const cur = { x: targetWs.playerState.x, y: targetWs.playerState.y };
   // v1.701: skippa BARA för bots (rtt 0/undefined → ingen klient-interp). Alla människor
   // har 60ms interp-delay → behöver rewind även vid låg ping (annars miss på rörliga mål).
   if (!shooterRtt) return cur;
-  return rewoundFromHistory(cur.x, cur.y, targetWs.playerState._history, shooterRtt, shooterInterpMs);
+  // B-fix (PvP-spegel): fixedTimeMs = skott-ogonblicket minus RTT/2+interp -> malet
+  // driver inte ivag under kulans flygtid (rewoundFromHistory anvander annars Date.now()).
+  return rewoundFromHistory(cur.x, cur.y, targetWs.playerState._history, shooterRtt, shooterInterpMs, fixedTimeMs);
+}
+
+// PvP B-fix-hjalpare: pinna rewind-malet till nar skytten SAG malet (skott-tid
+// minus halva pingen minus skyttens klient-interp). Kulor utan _spawnTime
+// (aldre kod-vagar) faller tillbaka pa gamla Date.now()-beteendet (undefined).
+function pvpFixedTargetTime(b, shooterRtt, ownerWs) {
+  if (!b || !b._spawnTime) return undefined;
+  const interp = (ownerWs && typeof ownerWs._clientInterpMs === 'number' && ownerWs._clientInterpMs > 0)
+    ? Math.min(200, ownerWs._clientInterpMs) : CLIENT_INTERP_DELAY_MS;
+  return b._spawnTime - Math.floor((shooterRtt || 0) / 2) - interp;
 }
 
 // Skada enemy server-side (mirror av game.js:5073-5116, utan UI/audio)
@@ -1555,14 +1567,17 @@ function updateBullets(sim, dt, now) {
       const ownerTeam = ownerWs && ownerWs.tdmTeam;
       if (!ownerTeam) { continue; }  // late-joiner utan team — skippa
       // Lag comp: rewinda target-position till där skytten såg dem
-      const shooterRtt = ownerWs && ownerWs._serverRtt;
+      // PvP-spegel av PvE-hit-reg-fixen: _serverRtt ar null forsta ~1s -> rewinden
+      // hoppades helt (forsta skotten whiffade). Manniskor far DEFAULT_RTT tills
+      // forsta pongen; bots forblir 0 (ingen rewind - de siktar pa server-sanning).
+      const shooterRtt = ownerWs ? (ownerWs._serverRtt || (ownerWs._isBot ? 0 : DEFAULT_RTT)) : 0;
       for (const [pid, ws] of sim.room.members) {
         if (pid === b.ownerPid) continue;
         if (!ws.playerState || ws.playerState.hp <= 0) continue;
         if (!ws.tdmTeam || ws.tdmTeam === ownerTeam) continue;  // FF fail-closed: okänt team → ingen skada
         const invuln = ws.playerState.invulnUntil || 0;
         if (Date.now() < invuln) continue;       // respawn-invuln skyddar
-        const rPos = rewoundPosition(ws, shooterRtt, ownerWs._clientInterpMs) || ws.playerState;
+        const rPos = rewoundPosition(ws, shooterRtt, ownerWs._clientInterpMs, pvpFixedTargetTime(b, shooterRtt, ownerWs)) || ws.playerState;
         const dx = rPos.x - b.x, dy = rPos.y - b.y;
         const rsum = 14 + b.r + 8;
         if (dx * dx + dy * dy < rsum * rsum) {
@@ -1607,14 +1622,17 @@ function updateBullets(sim, dt, now) {
       const ownerTeam = ownerWs && ownerWs.tdmTeam;
       if (!ownerTeam) continue;
       // Lag comp: rewinda target-position till där skytten såg dem
-      const shooterRtt = ownerWs && ownerWs._serverRtt;
+      // PvP-spegel av PvE-hit-reg-fixen: _serverRtt ar null forsta ~1s -> rewinden
+      // hoppades helt (forsta skotten whiffade). Manniskor far DEFAULT_RTT tills
+      // forsta pongen; bots forblir 0 (ingen rewind - de siktar pa server-sanning).
+      const shooterRtt = ownerWs ? (ownerWs._serverRtt || (ownerWs._isBot ? 0 : DEFAULT_RTT)) : 0;
       for (const [pid, ws] of sim.room.members) {
         if (pid === b.ownerPid) continue;
         if (!ws.playerState || ws.playerState.hp <= 0) continue;
         if (!ws.tdmTeam || ws.tdmTeam === ownerTeam) continue; // FF fail-closed
         const invuln = ws.playerState.invulnUntil || 0;
         if (Date.now() < invuln) continue;
-        const rPos = rewoundPosition(ws, shooterRtt, ownerWs._clientInterpMs) || ws.playerState;
+        const rPos = rewoundPosition(ws, shooterRtt, ownerWs._clientInterpMs, pvpFixedTargetTime(b, shooterRtt, ownerWs)) || ws.playerState;
         const dx = rPos.x - b.x, dy = rPos.y - b.y;
         const rsum = 14 + b.r + 8;
         if (dx * dx + dy * dy < rsum * rsum) {
@@ -1657,14 +1675,17 @@ function updateBullets(sim, dt, now) {
       const ownerTeam = ownerWs && ownerWs.tdmTeam;
       if (!ownerTeam) continue;
       // Lag comp: rewinda target-position till där skytten såg dem
-      const shooterRtt = ownerWs && ownerWs._serverRtt;
+      // PvP-spegel av PvE-hit-reg-fixen: _serverRtt ar null forsta ~1s -> rewinden
+      // hoppades helt (forsta skotten whiffade). Manniskor far DEFAULT_RTT tills
+      // forsta pongen; bots forblir 0 (ingen rewind - de siktar pa server-sanning).
+      const shooterRtt = ownerWs ? (ownerWs._serverRtt || (ownerWs._isBot ? 0 : DEFAULT_RTT)) : 0;
       for (const [pid, ws] of sim.room.members) {
         if (pid === b.ownerPid) continue;
         if (!ws.playerState || ws.playerState.hp <= 0) continue;
         if (!ws.tdmTeam || ws.tdmTeam === ownerTeam) continue; // FF fail-closed
         const invuln = ws.playerState.invulnUntil || 0;
         if (Date.now() < invuln) continue;
-        const rPos = rewoundPosition(ws, shooterRtt, ownerWs._clientInterpMs) || ws.playerState;
+        const rPos = rewoundPosition(ws, shooterRtt, ownerWs._clientInterpMs, pvpFixedTargetTime(b, shooterRtt, ownerWs)) || ws.playerState;
         const dx = rPos.x - b.x, dy = rPos.y - b.y;
         const rsum = 14 + b.r + 8;
         if (dx * dx + dy * dy < rsum * rsum) {
@@ -1702,13 +1723,16 @@ function updateBullets(sim, dt, now) {
       let pvpHit = false;
       const ownerWs = sim.room.members.get(b.ownerPid);
       if (!ownerWs) continue;
-      const shooterRtt = ownerWs && ownerWs._serverRtt;
+      // PvP-spegel av PvE-hit-reg-fixen: _serverRtt ar null forsta ~1s -> rewinden
+      // hoppades helt (forsta skotten whiffade). Manniskor far DEFAULT_RTT tills
+      // forsta pongen; bots forblir 0 (ingen rewind - de siktar pa server-sanning).
+      const shooterRtt = ownerWs ? (ownerWs._serverRtt || (ownerWs._isBot ? 0 : DEFAULT_RTT)) : 0;
       for (const [pid, ws] of sim.room.members) {
         if (pid === b.ownerPid) continue;
         if (!ws.playerState || ws.playerState.hp <= 0) continue;
         const invuln = ws.playerState.invulnUntil || 0;
         if (Date.now() < invuln) continue;
-        const rPos = rewoundPosition(ws, shooterRtt, ownerWs._clientInterpMs) || ws.playerState;
+        const rPos = rewoundPosition(ws, shooterRtt, ownerWs._clientInterpMs, pvpFixedTargetTime(b, shooterRtt, ownerWs)) || ws.playerState;
         const dx = rPos.x - b.x, dy = rPos.y - b.y;
         const rsum = 14 + b.r + 8;
         if (dx * dx + dy * dy < rsum * rsum) {
@@ -1767,13 +1791,16 @@ function updateBullets(sim, dt, now) {
       let pvpHit = false;
       const ownerWs = sim.room.members.get(b.ownerPid);
       if (!ownerWs) continue;
-      const shooterRtt = ownerWs && ownerWs._serverRtt;
+      // PvP-spegel av PvE-hit-reg-fixen: _serverRtt ar null forsta ~1s -> rewinden
+      // hoppades helt (forsta skotten whiffade). Manniskor far DEFAULT_RTT tills
+      // forsta pongen; bots forblir 0 (ingen rewind - de siktar pa server-sanning).
+      const shooterRtt = ownerWs ? (ownerWs._serverRtt || (ownerWs._isBot ? 0 : DEFAULT_RTT)) : 0;
       for (const [pid, ws] of sim.room.members) {
         if (pid === b.ownerPid) continue;
         if (!ws.playerState || ws.playerState.hp <= 0) continue;
         const invuln = ws.playerState.invulnUntil || 0;
         if (Date.now() < invuln) continue;
-        const rPos = rewoundPosition(ws, shooterRtt, ownerWs._clientInterpMs) || ws.playerState;
+        const rPos = rewoundPosition(ws, shooterRtt, ownerWs._clientInterpMs, pvpFixedTargetTime(b, shooterRtt, ownerWs)) || ws.playerState;
         const dx = rPos.x - b.x, dy = rPos.y - b.y;
         const rsum = 14 + b.r + 8;
         if (dx * dx + dy * dy < rsum * rsum) {
@@ -1853,7 +1880,10 @@ function updateBullets(sim, dt, now) {
       const ownerWs = sim.room.members.get(b.ownerPid);
       if (!ownerWs) continue;
       const ownerIsJug = ownerWs.playerState && ownerWs.playerState.isJug;
-      const shooterRtt = ownerWs && ownerWs._serverRtt;
+      // PvP-spegel av PvE-hit-reg-fixen: _serverRtt ar null forsta ~1s -> rewinden
+      // hoppades helt (forsta skotten whiffade). Manniskor far DEFAULT_RTT tills
+      // forsta pongen; bots forblir 0 (ingen rewind - de siktar pa server-sanning).
+      const shooterRtt = ownerWs ? (ownerWs._serverRtt || (ownerWs._isBot ? 0 : DEFAULT_RTT)) : 0;
       for (const [pid, ws] of sim.room.members) {
         if (pid === b.ownerPid) continue;
         if (!ws.playerState || ws.playerState.hp <= 0) continue;
@@ -1863,7 +1893,7 @@ function updateBullets(sim, dt, now) {
         // Friendly-fire-regler: hunter→hunter blockerat, JUG→JUG kan inte hända
         if (!ownerIsJug && !targetIsJug) continue;
         if (ownerIsJug && targetIsJug) continue;
-        const rPos = rewoundPosition(ws, shooterRtt, ownerWs._clientInterpMs) || ws.playerState;
+        const rPos = rewoundPosition(ws, shooterRtt, ownerWs._clientInterpMs, pvpFixedTargetTime(b, shooterRtt, ownerWs)) || ws.playerState;
         const dx = rPos.x - b.x, dy = rPos.y - b.y;
         const rsum = 14 + b.r + 8;
         if (dx * dx + dy * dy < rsum * rsum) {
@@ -1914,13 +1944,16 @@ function updateBullets(sim, dt, now) {
       const ownerWs = sim.room.members.get(b.ownerPid);
       if (!ownerWs) continue;
       // Lag comp: rewinda target-position till där skytten såg dem
-      const shooterRtt = ownerWs && ownerWs._serverRtt;
+      // PvP-spegel av PvE-hit-reg-fixen: _serverRtt ar null forsta ~1s -> rewinden
+      // hoppades helt (forsta skotten whiffade). Manniskor far DEFAULT_RTT tills
+      // forsta pongen; bots forblir 0 (ingen rewind - de siktar pa server-sanning).
+      const shooterRtt = ownerWs ? (ownerWs._serverRtt || (ownerWs._isBot ? 0 : DEFAULT_RTT)) : 0;
       for (const [pid, ws] of sim.room.members) {
         if (pid === b.ownerPid) continue; // ingen self-fire
         if (!ws.playerState || ws.playerState.hp <= 0) continue;
         const invuln = ws.playerState.invulnUntil || 0;
         if (Date.now() < invuln) continue;
-        const rPos = rewoundPosition(ws, shooterRtt, ownerWs._clientInterpMs) || ws.playerState;
+        const rPos = rewoundPosition(ws, shooterRtt, ownerWs._clientInterpMs, pvpFixedTargetTime(b, shooterRtt, ownerWs)) || ws.playerState;
         const dx = rPos.x - b.x, dy = rPos.y - b.y;
         const rsum = 14 + b.r + 8;
         if (dx * dx + dy * dy < rsum * rsum) {
