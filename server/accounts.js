@@ -2646,7 +2646,7 @@ function postJSON(url,body,cb){fetch(url,{method:"POST",headers:hdr(),body:JSON.
  return r.json().then(function(j){cb(r.ok,j)}).catch(function(){cb(r.ok,{})})}).catch(function(){cb(false,{})})}
 </script></body></html>`;
 
-module.exports = { handle, onDisconnect, presenceChanged, handleGoogleRedirect, handleGoogleCallback, handleSessionHttp, wsForAccount, handleAdminHttp, creditMatchEndXp, isBlockedPair,
+module.exports = { nameFlagged, handle, onDisconnect, presenceChanged, handleGoogleRedirect, handleGoogleCallback, handleSessionHttp, wsForAccount, handleAdminHttp, creditMatchEndXp, isBlockedPair,
   // Test/debug-hook (används i verifierings-skript, EJ i produktionskod)
   _flush: function(cb) {
     if (_pendingWrites === 0 && !_dirty && _dirtySet.size === 0 && _deletedSet.size === 0) { cb(); return; }

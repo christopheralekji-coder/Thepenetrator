@@ -236,6 +236,17 @@ const CTF_FLAG_AUTORETURN_MS = 30000;
 const CTF_CARRIER_SPEED_MUL = 0.80; // -25% speed för flag-carrier
 
 function tickSim(sim) {
+  // S5: manniskolost rum (reconnect-grace/humanless-fonster) -> ~5Hz i st.f. 60.
+  // Bot-AI + kollision pa full takt for ett rum INGEN ser stal delad event-loop-
+  // tid (3-5 samtidiga quits = +5-15ms pa ALLA rums tick i en minut). Return
+  // FORE lastTick -> dt vaxer till clampen (0.1s) = sim-tid gar halvfart under
+  // fonstret (ofarligt: ingen tittar). Spectators ar members -> raknas som publik.
+  if (sim.room && sim.room.members && sim.room.members.size === 0) {
+    sim._ghostSkip = ((sim._ghostSkip || 0) + 1) % 12;
+    if (sim._ghostSkip !== 0) return;
+  } else {
+    sim._ghostSkip = 0;
+  }
   const now = Date.now();
   const dt = Math.min(0.1, (now - sim.lastTick) / 1000);
   sim.lastTick = now;

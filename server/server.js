@@ -1180,6 +1180,22 @@ function handleMessage(ws, msg) {
         decorations: cdArena.decorations || [],
         buildables: cdArena.buildables,
         buildGridSize: cdArena.buildGridSize,
+        // S6: fullt falt-set (speglar room-sim:s cd_started) — late-joinaren fick
+        // annars OSYNLIGT slott (inga murar/slots/NPCer/vendor) som fiender
+        // kolliderade med. Survivors delar blocket men saknar slott -> gate:at.
+        castle: sim.survivorsActive ? undefined : cdArena.castle,
+        castleWalls: sim.survivorsActive ? undefined
+          : (sim.castledefenseCastleWalls || []).map(w => ({ x: w.x, y: w.y, w: w.w, h: w.h })),
+        battlementSlots: sim.survivorsActive ? undefined : cdArena.battlementSlots,
+        castleNpcs: (sim.survivorsActive || !sim.castledefenseNpcs) ? undefined : {
+          throne: { ...sim.castledefenseNpcs.throne },
+          heal_npc: { ...sim.castledefenseNpcs.heal_npc },
+          repair_npc: { ...sim.castledefenseNpcs.repair_npc },
+          weapon_vendor: { ...((cdArena.castleNpcs && cdArena.castleNpcs.weapon_vendor) || {}) },
+        },
+        downReviveRadius: cdArena.downReviveRadius || 60,
+        slotBuildables: sim.survivorsActive ? undefined : cdArena.slotBuildables,
+        enemyGoal: sim.castledefenseGoal,
         startHp: cdArena.startHp,
         maxHp: cdArena.maxHp,
         startGold: sim.castledefenseGold,
@@ -1194,6 +1210,19 @@ function handleMessage(ws, msg) {
         isReconnect: !!ws._cdReconnect,
         isLateJoin: true,
       }] });
+      // S6: spela upp LEVANDE byggen — de broadcastades som one-shot-events
+      // langt fore join (annars osynliga strukturer fiender krockar med).
+      // ~40 byggen = ~6KB (langt under frag-taket).
+      if (Array.isArray(sim.castledefenseBuildings) && sim.castledefenseBuildings.length) {
+        const _bev = sim.castledefenseBuildings.filter(b => b && b.hp > 0).map(b => ({
+          type: 'cd_building_placed',
+          id: b.id, kind: b.kind, x: b.x, y: b.y, w: b.w, h: b.h,
+          hp: b.hp, maxHp: b.maxHp, ownerPid: b.ownerPid || '',
+          range: b.range, radius: b.radius, open: b.open,
+          level: b.level, slotId: b.slotId,
+        }));
+        if (_bev.length) send(ws, { type: 'sim_events', events: _bev });
+      }
       return;
     }
 
@@ -1279,6 +1308,23 @@ function handleMessage(ws, msg) {
     // Forwarda meddelande till specifik peer eller alla i rummet
     const room = rooms.get(ws.roomCode);
     if (!room) return;
+    // B3: relay hade NOLL skydd — 24x fan-out-amplification pa delade event-
+    // loopen (modifierad klient: 500 msg/s x 24 peers = 12k sand/s) + oandlig
+    // vcmd/emote-spam. Token-fonster 6/s (stock-klienten skickar ~1/s) +
+    // storleks-cap 2KB. Tyst drop (griefern far ingen feedback).
+    const _rNow = Date.now();
+    if (!ws._relayWin || _rNow - ws._relayWin > 1000) { ws._relayWin = _rNow; ws._relayCt = 0; }
+    if (++ws._relayCt > 6) return;
+    try { if (JSON.stringify(msg.data || {}).length > 2048) return; } catch (e) { return; }
+    // B3: outfit-relayn bar in-game-namn/titel OFILTRERAT forbi nameFlagged
+    // (kunde visa slurs/10k-tecken over huvudet for alla peers) — clamp + filter.
+    if (msg.data && msg.data.t === 'outfit') {
+      if (typeof msg.data.nm === 'string') {
+        msg.data.nm = msg.data.nm.slice(0, 20);
+        if (accounts.nameFlagged(msg.data.nm)) msg.data.nm = 'Player';
+      }
+      if (typeof msg.data.tt === 'string') msg.data.tt = msg.data.tt.slice(0, 24);
+    }
     const payload = { type: 'relay', from: ws.id, data: msg.data };
     if (msg.to) {
       const target = room.members.get(msg.to);
@@ -2459,7 +2505,11 @@ function handleDisconnect(ws) {
   // v1.659: stasha server-side-only-state fÃ¶r ev. reconnect (Heist-roll + hp/shield)
   // innan vi rensar. Bara under aktiv sim + om klienten har en reconnect-token.
   // Stashen lever i rummet (rensas nÃ¤r rummet stÃ¤ngs) och utgÃ¥r efter 60s vid restore.
-  if (room.sim && ws._reconnectToken) {
+  // S5: stash:a BARA vid riktiga tapp — 'leave'/kick har levande socket
+  // (readyState 1, samma konvention som accounts.onDisconnect). Forr fick
+  // avsiktliga utträden (V2 skickade dessutom aldrig leave) en stash ->
+  // roomHasLiveReconnectStash höll rummet + full bot-sim vid liv i 60s.
+  if (room.sim && ws._reconnectToken && ws.readyState !== 1) {
     room._reconnectStash = room._reconnectStash || {};
     const ps = ws.playerState || {};
     room._reconnectStash[ws._reconnectToken] = {
