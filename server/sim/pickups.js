@@ -16,26 +16,28 @@ function spawnPickup(sim, x, y, type) {
 // Drop-tabell vid enemy/boss death — speglar killEnemy (game.js:5147+) drops
 // För enkelhet: enemy → 50% chans gold, 15% hp, 10% ammo, 5% temp_dmg
 function dropFromEnemyDeath(sim, e) {
+  // AMMO borttaget ur ALLA drops (2026-07-07, agarbeslut): V2 har ingen
+  // ammo-reserv-mekanik -> pickupen var meningslos. Sloten omfordelad till
+  // gold (bossar: extra guld; vanliga: 50%->60% guld).
   const r = Math.random();
   if (e.isBoss) {
     // Bossar droppar mer
     spawnPickup(sim, e.x, e.y, 'gold');
     spawnPickup(sim, e.x + 30, e.y, 'gold');
     spawnPickup(sim, e.x - 30, e.y, 'hp');
-    spawnPickup(sim, e.x, e.y + 30, 'ammo');
+    spawnPickup(sim, e.x, e.y + 30, 'gold');
     if (Math.random() < 0.5) spawnPickup(sim, e.x, e.y - 30, 'temp_dmg');
     return;
   }
   if (e.isMiniBoss) {
     spawnPickup(sim, e.x, e.y, 'gold');
     spawnPickup(sim, e.x + 20, e.y, 'hp');
-    if (Math.random() < 0.5) spawnPickup(sim, e.x - 20, e.y, 'ammo');
+    if (Math.random() < 0.5) spawnPickup(sim, e.x - 20, e.y, 'gold');
     return;
   }
   // Vanlig enemy
-  if (r < 0.50) spawnPickup(sim, e.x, e.y, 'gold');
-  else if (r < 0.65) spawnPickup(sim, e.x, e.y, 'hp');
-  else if (r < 0.75) spawnPickup(sim, e.x, e.y, 'ammo');
+  if (r < 0.60) spawnPickup(sim, e.x, e.y, 'gold');
+  else if (r < 0.75) spawnPickup(sim, e.x, e.y, 'hp');
   else if (r < 0.80) spawnPickup(sim, e.x, e.y, 'temp_dmg');
 }
 
