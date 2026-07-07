@@ -2583,6 +2583,71 @@ function cdGetDifficultyPriceMul(difficulty) {
   }
 }
 
+// ═══ BIOM-INVASIONER (2026-07-07): CD:s vagor foljer kampanjens biom-trappa ═══
+// Band = ceil(wave/3): 1-3 forest, 4-6 desert, 7-9 military, 10-12 ossuary,
+// 13-15 swamp, 16-18 volcano, 19-21 arctic, 22-24 crystal, 25-27 omega,
+// 28-30 fortress, 31+ fri mix (slumpat band per pick = hela bestiariet).
+// Varje vag mixar ~60% biom-fiender + 40% klassiker (stommen mot slottet).
+// Split-barn (sporeling/huskling/moltenling/...) ingar INTE i poolerna — de
+// spawnas av sina split-foraldrar. Militar-bandet ateranvander klassikerna
+// (soldier/shooter/sniper = redan tematiskt ratt). SURVIVORS behaller gamla
+// klassiska poolen (egen balans/tempo) — allt har ar gate:at pa !survivors.
+const CD_MINIBOSS_HP_MUL = 6.0;    // eskort-elit, inte trash (kampanj-baser ar laga)
+const CD_BIOME_WAVE_EXP = 0.04;    // dampad vag-skalning for biom-typer (baserna
+                                   // eskalerar redan per band; klassiker behaller 0.08)
+const CD_BIOME_BANDS = [
+  { biome: 'forest',  boss: 'witheredelder',  mini: 'forest_miniboss',
+    pool: ['forest_mosshusk','forest_mosshusk','forest_sporefly','forest_chokecap','forest_sporespitter','forest_cursewisp','forest_vinelasher','forest_rotbloom','forest_sporemother'],
+    fast: ['forest_sporefly','forest_sporefly','forest_chokecap'],
+    ranged: ['forest_sporespitter','forest_cursewisp','forest_sporemother'] },
+  { biome: 'desert',  boss: 'buriedcrown',    mini: 'desert_miniboss',
+    pool: ['desert_jackal','desert_husk','desert_husk','desert_reaver','desert_mirage','desert_sandram','desert_lurker','desert_tarspitter','desert_warden'],
+    fast: ['desert_jackal','desert_jackal','desert_lurker'],
+    ranged: ['desert_reaver','desert_mirage','desert_tarspitter'] },
+  { biome: 'military', boss: 'ironclad',      mini: 'military_miniboss',
+    pool: ['soldier','soldier','shooter','shooter','grunt','sniper','dog'],
+    fast: ['dog','dog','ninja'],
+    ranged: ['shooter','soldier','sniper'] },
+  { biome: 'ossuary', boss: 'ossarius',       mini: 'ossuary_miniboss',
+    pool: ['ossuary_shambler','ossuary_shambler','ossuary_colossus','ossuary_spitter','ossuary_wisp','ossuary_lancer','ossuary_bulwark','ossuary_hook_wraith','ossuary_splitter'],
+    fast: ['ossuary_lancer','ossuary_wisp'],
+    ranged: ['ossuary_spitter','ossuary_wisp','ossuary_hook_wraith'] },
+  { biome: 'swamp',   boss: 'blightsovereign', mini: 'swamp_miniboss',
+    pool: ['swamp_oozeling','swamp_oozeling','swamp_leech','swamp_drowned','swamp_spitter','swamp_wisp','swamp_bloat','swamp_angler','swamp_bulwark'],
+    fast: ['swamp_leech','swamp_leech','swamp_wisp'],
+    ranged: ['swamp_spitter','swamp_wisp','swamp_angler'] },
+  { biome: 'volcano', boss: 'emberoracle',    mini: 'volcano_miniboss',
+    pool: ['volcano_cinderling','volcano_magma_hound','volcano_slag_behemoth','volcano_pyre_zealot','volcano_ember_seer','volcano_obsidian_ram','volcano_molten_spawn','volcano_lava_warden'],
+    fast: ['volcano_cinderling','volcano_magma_hound','volcano_magma_hound'],
+    ranged: ['volcano_pyre_zealot','volcano_ember_seer','volcano_lava_warden'] },
+  { biome: 'arctic',  boss: 'mirroredone',    mini: 'arctic_miniboss',
+    pool: ['arctic_rimeguard','arctic_rimeguard','arctic_behemoth','arctic_shardcaster','arctic_frostseer','arctic_permacrawler','arctic_brittlerevenant','arctic_avalanche','arctic_mirrorsentinel'],
+    fast: ['arctic_avalanche','arctic_permacrawler','arctic_brittlerevenant'],
+    ranged: ['arctic_shardcaster','arctic_frostseer'] },
+  { biome: 'crystal', boss: 'vanguardatlas',  mini: 'crystal_cave_miniboss',
+    pool: ['crystal_cave_crawler','crystal_cave_crawler','crystal_cave_shard_skitter','crystal_cave_prism_stalker','crystal_cave_lumen_wisp','crystal_cave_prism_lance','crystal_cave_refraction_lurker','crystal_cave_facet_guardian','crystal_cave_resonant_cantor'],
+    fast: ['crystal_cave_prism_stalker','crystal_cave_prism_stalker','crystal_cave_shard_skitter'],
+    ranged: ['crystal_cave_lumen_wisp','crystal_cave_prism_lance'] },
+  { biome: 'omega',   boss: 'lastsovereign',  mini: 'omega_miniboss',
+    pool: ['omega_chrome_husk','omega_chrome_husk','omega_volt_wisp','omega_core_juggernaut','omega_seeker_drone','omega_arc_lance','omega_overload_cell','omega_nanite_mass','omega_aegis_dish'],
+    fast: ['omega_volt_wisp','omega_volt_wisp','omega_overload_cell'],
+    ranged: ['omega_seeker_drone','omega_arc_lance'] },
+  { biome: 'fortress', boss: 'thewarden',     mini: 'fortress_miniboss',
+    pool: ['fortress_ironguard','fortress_ironguard','fortress_colossus','fortress_crossbow','fortress_ballista','fortress_tower_shield','fortress_lancer','fortress_herald','fortress_hook'],
+    fast: ['fortress_lancer','fortress_lancer'],
+    ranged: ['fortress_crossbow','fortress_ballista','fortress_hook'] },
+];
+function cdBiomeBand(wave) {
+  const idx = Math.min(CD_BIOME_BANDS.length - 1, Math.floor((wave - 1) / 3));
+  return CD_BIOME_BANDS[idx];
+}
+function cdBandForPick(wave) {
+  if (wave > CD_BIOME_BANDS.length * 3) {
+    return CD_BIOME_BANDS[Math.floor(Math.random() * CD_BIOME_BANDS.length)];
+  }
+  return cdBiomeBand(wave);
+}
+
 // v1.416: Special wave themes var 3:e wave (skippas vid boss-wave)
 const CD_WAVE_THEMES = ['speed_rush', 'bomb_squad', 'sniper_alley', 'elite', 'horde'];
 function cdGetWaveTheme(wave, arena) {
@@ -2591,10 +2656,17 @@ function cdGetWaveTheme(wave, arena) {
   const idx = Math.floor(wave / 3) - 1;
   return CD_WAVE_THEMES[idx % CD_WAVE_THEMES.length];
 }
-function cdGetThemePool(theme) {
-  if (theme === 'speed_rush') return ['runner', 'ninja', 'dog', 'swarmer'];
+function cdGetThemePool(theme, wave, useBiomes) {
+  // BIOM-INVASIONER: tema-vagorna drar bandets snabbaste/ranged + klassisk karna
+  if (theme === 'speed_rush') {
+    if (useBiomes) return cdBiomeBand(wave).fast.concat(['runner', 'dog']);
+    return ['runner', 'ninja', 'dog', 'swarmer'];
+  }
   if (theme === 'bomb_squad') return ['bomber', 'bomber', 'grunt', 'grunt'];
-  if (theme === 'sniper_alley') return ['shooter', 'soldier', 'sniper'];
+  if (theme === 'sniper_alley') {
+    if (useBiomes) return cdBiomeBand(wave).ranged.concat(['shooter', 'sniper']);
+    return ['shooter', 'soldier', 'sniper'];
+  }
   return null; // elite/horde använder default-pool
 }
 function cdGetThemeCountMul(theme) {
@@ -2616,7 +2688,14 @@ function cdGetThemeLabel(theme) {
 }
 
 // v1.415: Returnera enemy-typer som kan spawnas vid en specifik våg (för preview).
-function cdGetWavePool(wave) {
+function cdGetWavePool(wave, useBiomes) {
+  // BIOM-INVASIONER: forhandsvisningen speglar bandets faktiska mix
+  if (useBiomes) {
+    const band = cdBiomeBand(wave);
+    const uniq = [];
+    for (const id of band.pool) { if (!uniq.includes(id)) uniq.push(id); }
+    return uniq.concat(cdGetWavePool(wave, false).slice(0, 3));
+  }
   if (wave <= 2) return ['grunt', 'runner'];
   if (wave <= 4) return ['grunt', 'runner', 'swordsman'];
   if (wave <= 6) return ['grunt', 'runner', 'swordsman', 'brute'];
@@ -2628,7 +2707,13 @@ function cdGetWavePool(wave) {
 // Pick enemy-type för current våg. Phase 5: mixad pool per våg-band.
 // Använder existing enemy-typer; sapper-rollen täcks av 'bomber' (suicide-explode),
 // flyer-rollen läggs på 'swarmer'/'dog' med _cdFlyer flag som skippar wall-collision.
-function cdPickEnemyType(wave) {
+function cdPickEnemyType(wave, useBiomes) {
+  // BIOM-INVASIONER: ~60% biom-typ ur bandet, ~40% klassisk stomme (haller
+  // flow-field-trycket mot slottet medan biom-typerna ger bandets identitet)
+  if (useBiomes && Math.random() < 0.6) {
+    const band = cdBandForPick(wave);
+    return band.pool[Math.floor(Math.random() * band.pool.length)];
+  }
   // Pool definieras per våg-band — bombers pushas till våg 10+ från playtest
   // (50 dmg one-shottar otränat spelare på våg 7 utan warning)
   let pool;
@@ -2643,8 +2728,14 @@ function cdPickEnemyType(wave) {
 
 // Vissa typer agerar som "flyer" (ignorerar walls i castledefense).
 // För variety: 30% av 'swarmer' och 'ninja' markeras som flyers.
+const CD_BIOME_FLYERS = new Set(['forest_sporefly', 'ossuary_wisp', 'swamp_wisp',
+  'omega_volt_wisp', 'crystal_cave_lumen_wisp', 'forest_cursewisp']);
 function cdMaybeAssignFlyer(e) {
   if ((e.type === 'swarmer' || e.type === 'ninja') && Math.random() < 0.35) {
+    e._cdFlyer = true;
+  }
+  // BIOM-INVASIONER: svavande typer (flugor/wisps) flyger over falt-murar ibland
+  if (CD_BIOME_FLYERS.has(e.type) && Math.random() < 0.35) {
     e._cdFlyer = true;
   }
 }
@@ -2655,7 +2746,16 @@ const CD_BOSS_ROTATION = [
   'emberoracle', 'blightsovereign', 'buriedcrown', 'lastsovereign',
 ];
 
-function cdPickBossKey(wave) {
+function cdPickBossKey(wave, useBiomes) {
+  // BIOM-INVASIONER: boss-vagen anvander DET AKTUELLA bandets biom-boss →
+  // konsekvent tema (vag 5 = desert-bandet → buriedcrown osv). 31+ cyklar alla.
+  if (useBiomes) {
+    if (wave > CD_BIOME_BANDS.length * 3) {
+      const ci = Math.floor(wave / 5) - 1;
+      return CD_BIOME_BANDS[ci % CD_BIOME_BANDS.length].boss;
+    }
+    return cdBiomeBand(wave).boss;
+  }
   // Wave 5 = idx 0, wave 10 = idx 1, etc. Cycle:as runt om hög våg.
   const idx = Math.floor(wave / 5) - 1;
   return CD_BOSS_ROTATION[idx % CD_BOSS_ROTATION.length];
@@ -3578,7 +3678,7 @@ function tickCastleDefense(sim, dt, now) {
     const theme = cdGetWaveTheme(w, arena);
     sim._cdActiveTheme = theme;
     if (isBoss) {
-      const bossKey = cdPickBossKey(w);
+      const bossKey = cdPickBossKey(w, !sim.survivorsActive);
       const sp = arena.enemySpawns[Math.floor(Math.random() * arena.enemySpawns.length)];
       // v1.697: boss-HP sublinjärt (matchar story-bossar) i st f linjärt 8× @8p
       const coopMul = cdGetCoopMul(Math.max(1, _realMemberCount(sim)));
@@ -3615,6 +3715,29 @@ function tickCastleDefense(sim, dt, now) {
       const countMul = cdGetThemeCountMul(theme);
       // v1.697: coop-spawn-skalning så svärmen växer med spelarantal
       sim._cdWaveSpawnsRemaining = Math.max(1, Math.round(base * countMul * cdGetCoopSpawnMul(Math.max(1, _realMemberCount(sim)))));
+      // BIOM-INVASIONER: bandets SISTA vag (var 3:e, ej boss-vag) eskorteras av
+      // biomets dedikerade miniboss — kampanjens 10 far naturlig plats i CD.
+      // Klienten renderar via isMiniBoss->mb-flaggan + '<biome>_miniboss'-TEX.
+      if (!sim.survivorsActive && w % 3 === 0) {
+        const mBand = cdBiomeBand(w);
+        const msp = arena.enemySpawns[Math.floor(Math.random() * arena.enemySpawns.length)];
+        const mbE = makeEnemy(mBand.mini, msp.x, msp.y);
+        if (mbE) {
+          mbE._idx = sim.nextEnemyIdx++;
+          mbE._cdEnemy = true;
+          mbE.isMiniBoss = true;
+          mbE._cdRole = 'attacker';
+          const mDiff = cdGetDiffMul(sim.config.difficulty);
+          const mWave = 1 + (w - 1) * CD_BIOME_WAVE_EXP;
+          const mMembers = Math.max(1, _realMemberCount(sim));
+          mbE.hp = Math.max(1, Math.round(mbE.hp * CD_MINIBOSS_HP_MUL * mWave * mDiff.enemyHp * cdGetCoopMul(mMembers)));
+          mbE.maxHp = mbE.hp;
+          mbE.dmg = Math.max(1, Math.round(mbE.dmg * mWave * mDiff.enemyDmg * cdGetCoopDmgMul(mMembers)));
+          if (mbE.bulletDmg) mbE.bulletDmg = Math.max(1, Math.round(mbE.bulletDmg * mDiff.enemyDmg * cdGetCoopDmgMul(mMembers)));
+          mbE._origSpeed = mbE.speed;
+          sim.enemies.push(mbE);
+        }
+      }
     }
     sim._cdWaveSpawnTimer = 0;
     // timed advance: nästa våg får överlappa in efter waveActiveMaxSec även om
@@ -3638,8 +3761,8 @@ function tickCastleDefense(sim, dt, now) {
     if (sim._cdWaveSpawnTimer <= 0 && sim.enemies.length < _spawnCap) {
       const sp = arena.enemySpawns[Math.floor(Math.random() * arena.enemySpawns.length)];
       // v1.416: theme override pool
-      const themePool = cdGetThemePool(sim._cdActiveTheme);
-      const type = themePool ? themePool[Math.floor(Math.random() * themePool.length)] : cdPickEnemyType(sim.castledefenseWave);
+      const themePool = cdGetThemePool(sim._cdActiveTheme, sim.castledefenseWave, !sim.survivorsActive);
+      const type = themePool ? themePool[Math.floor(Math.random() * themePool.length)] : cdPickEnemyType(sim.castledefenseWave, !sim.survivorsActive);
       const e = makeEnemy(type, sp.x, sp.y);
       e._idx = sim.nextEnemyIdx++;
       e._cdEnemy = true;
@@ -3648,9 +3771,13 @@ function tickCastleDefense(sim, dt, now) {
       // v1.606: SURVIVORS — wave-counter växer snabbt (time-based), så vi
       // skalar via elapsed-time istället för wave-number (+10%/min) så det
       // inte blir orimligt tankigt vid wave 30+.
+      // BIOM-INVASIONER: biom-typernas baser eskalerar redan genom banden →
+      // dampad vag-multiplikator (0.04) sa det inte blir dubbel eskalering.
+      // Klassikerna (statiska baser) behaller 0.08. Biom-ids har alltid '_'.
+      const _cdWaveExp = type.includes('_') ? CD_BIOME_WAVE_EXP : 0.08;
       const cdWaveScale = sim.survivorsActive && sim.survivorsStartT
         ? (1 + ((Date.now() - sim.survivorsStartT) / 60000) * 0.10)
-        : (1 + (sim.castledefenseWave - 1) * 0.08);
+        : (1 + (sim.castledefenseWave - 1) * _cdWaveExp);
       const cdDiff = cdGetDiffMul(sim.config.difficulty);
       // v1.697: Tidigare STRIKT linjär coop-skalning (8p = 8× HP OCH 8× dmg) gjorde
       // höga spelarantal brutala — 8× skada per träff mot oskalad spelar-EHP, samtidigt
@@ -4386,7 +4513,7 @@ function tickCastleDefense(sim, dt, now) {
     const nextIsBoss = nextWave % arena.bossEveryWave === 0;
     const nextTheme = cdGetWaveTheme(nextWave, arena);
     const themePool = cdGetThemePool(nextTheme);
-    const nextPool = themePool || cdGetWavePool(nextWave);
+    const nextPool = themePool || cdGetWavePool(nextWave, !sim.survivorsActive);
     const baseCount = cdEnemiesForWave(arena, nextWave);
     const nextCount = nextIsBoss ? (3 + Math.floor(nextWave / 5) + 1) : Math.round(baseCount * cdGetThemeCountMul(nextTheme));
     const nextBossKey = nextIsBoss ? cdPickBossKey(nextWave) : null;
