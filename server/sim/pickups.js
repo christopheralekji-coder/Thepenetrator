@@ -84,12 +84,21 @@ function updatePickups(sim, dt) {
     const psN = nearest.ws.playerState;
     const magRange = (psN && psN.perks && psN.perks.magnetism) ? MAGNET_RANGE * 3 : MAGNET_RANGE;
     if (d < magRange) pk.magnetized = true;
+    // FIX 2026-07-07 ("loot stannar/fastnar"): golvet var 200 px/s — LANGSAMMARE an
+    // spelarens lopfart (~300-460, dash 918) -> magnetiserad loot slapade efter en
+    // springande spelare for evigt utanfor magRange (formeln foll till exakt 200).
+    // Nu: golv OVER max lopfart (uppsugningen vinner alltid) + narfalts-acceleration
+    // kvar + kliv aldrig FORBI spelaren (ingen overshoot-wobble vid slow-tick) +
+    // upplock pa POST-flytt-avstandet (ingen extra hover-tick vid kroppen).
+    let nd = d;
     if (pk.magnetized && d > 0) {
-      const speed = Math.min(600, 200 + Math.max(0, 1 - d / magRange) * 300);
-      pk.x += (dx / d) * speed * dt;
-      pk.y += (dy / d) * speed * dt;
+      const speed = 520 + Math.max(0, 1 - d / magRange) * 330;   // 520 fjarran -> 850 nara
+      const step = Math.min(speed * dt, d);
+      pk.x += (dx / d) * step;
+      pk.y += (dy / d) * step;
+      nd = d - step;
     }
-    if (d < (nearest.r + 10)) {
+    if (nd < (nearest.r + 10)) {
       pk.dead = true;
       // Skicka pickup-event till spelaren — klient applicerar effekt lokalt (HP/ammo/gold)
       // (Server kan inte uppdatera klientens save, gold eller ammo direkt)
