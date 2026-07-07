@@ -118,7 +118,18 @@ function steerAround(sim, ps, hx, hy, speed, dt) {
   const walls = getActiveWalls(sim);
   if (walls && walls.length) {
     const probe = 62, R = 16;
-    const blocked = (nx, ny) => bulletHitsWall({ x: ps.x + nx * probe, y: ps.y + ny * probe, r: R }, walls);
+    // PERF (BR): broadphase-grid → hämta kandidatväggar EN gång per steerAround-anrop
+    // i st.f. att skicka hela ~1835-väggslistan till bulletHitsWall per probe (upp till
+    // 9 anrop × full lista per bot × tick). Rekten probe+R=78px åt varje håll täcker
+    // alla 9 probe-riktningars maximala räckvidd (superset → identiskt geometri-resultat).
+    // Återanvänder sim._brLosGrid (byggs lazy, samma instans som losBlocked och bullets).
+    let wallSet = walls;
+    if (sim.battleroyaleActive) {
+      const grid = sim._brLosGrid || (sim._brLosGrid = buildWallGrid(walls));
+      wallSet = wallsInRect(grid, ps.x - (probe + R), ps.y - (probe + R),
+                                  ps.x + (probe + R), ps.y + (probe + R));
+    }
+    const blocked = (nx, ny) => bulletHitsWall({ x: ps.x + nx * probe, y: ps.y + ny * probe, r: R }, wallSet);
     if (blocked(hx, hy)) {
       const baseAng = Math.atan2(hy, hx);
       const offs = [0.5, -0.5, 1.0, -1.0, 1.6, -1.6, 2.2, -2.2];
