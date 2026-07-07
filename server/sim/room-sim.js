@@ -512,7 +512,12 @@ function tickSim(sim) {
         const _spawnWalls = pveWalls(sim);
         if (_spawnWalls) {
           for (let k = beforeCount; k < sim.enemies.length; k++) {
-            resolveWallsCircle(sim.enemies[k], _spawnWalls);
+            const _se = sim.enemies[k];
+            const _seR = _se.r || 12;
+            const _swCands = sim._pveWallGrid
+              ? wallsInRect(sim._pveWallGrid, _se.x - _seR - 2, _se.y - _seR - 2, _se.x + _seR + 2, _se.y + _seR + 2)
+              : _spawnWalls;
+            resolveWallsCircle(_se, _swCands);
           }
         }
       }
@@ -566,7 +571,14 @@ function tickSim(sim) {
       e.y = Math.max(20, Math.min(wh - 20, e.y));
       // v2: lös överlapp mot husen EFTER att AI:n flyttat (ingen path-ändring) —
       // fienden glider längs väggen (minsta-penetrations-axeln) istället för fastna.
-      if (_enemyWalls) resolveWallsCircle(e, _enemyWalls);
+      // C225: wallsInRect-broadphase på _pveWallGrid (~3x snabbare vid 80+ walls).
+      if (_enemyWalls) {
+        const _eWr = e.r || 12;
+        const _ewCands = sim._pveWallGrid
+          ? wallsInRect(sim._pveWallGrid, e.x - _eWr - 2, e.y - _eWr - 2, e.x + _eWr + 2, e.y + _eWr + 2)
+          : _enemyWalls;
+        resolveWallsCircle(e, _ewCands);
+      }
     }
   }
 
@@ -3474,23 +3486,37 @@ function tickCastleDefense(sim, dt, now) {
     }
   }
 
-  // === FLOW FIELD: bygg/rebygg om dirty ===
+  // === FLOW FIELD + SOLID-LISTOR + KOLLISIONSGRIDER: bygg/rebygg om dirty ===
+  // C225 (perf 2026-07-07): cdAllSolids/cdMoveSolids cachas på sim och byggs BARA när
+  // structuren ändras (wall/gate byggs/säljs/förstörs/öppnas/hp=0 vid fiendeattack).
+  // Samma dirty-signal (_cdFlowDirty) täcker ALLA mutationsvägar exakt — verifierat
+  // mot: bygg (9666), sälj (9834), fiendeförstör (4055), gate-toggle (10019), start (8568).
+  // buildWallGrid-grider byggs i samma block för O(local) wallsInRect-queries i enemy-loop.
+  // PERF-not: grid är neutral/marginellt sämre för typisk CD (5+15=20 väggar) pga Map-
+  // overhead, men fallback till linear körs automatiskt om grid saknas (null-check).
   if (sim._cdFlowDirty || !sim._cdFlowField) {
+    const _lw = sim.castledefenseWalls.filter(w => w.hp > 0);
+    const _lb = sim.castledefenseBuildings.filter(b => b.hp > 0);
+    const _sb = _lb.filter(b => b.kind === 'wall' || (b.kind === 'gate' && !b.open));
+    const _as = _lw.concat(_sb);
+    const _ms = _as.concat(sim.castledefenseCastleWalls || []);
+    sim._cdAllSolids     = _as;
+    sim._cdMoveSolids    = _ms;
+    // HYBRID: grid lonar sig forst vid ~50+ solids (differentiellt uppmatt
+    // 1.9x LANGSAMMARE vid typiska ~20 pga Map-overhead). Under troskeln
+    // lamnas griden null -> bada query-sites har redan linear-fallback.
+    sim._cdMoveSolidsGrid = _ms.length > 48 ? buildWallGrid(_ms) : null;
+    sim._cdAllSolidsGrid  = _as.length > 48 ? buildWallGrid(_as) : null;
     sim._cdFlowField = buildCdFlowField(sim);
     sim._cdFlowDirty = false;
   }
-
-  // Bygg alive-walls + buildings för collision-checks.
-  // v2 REDESIGN: SOLIDA (blockerar rörelse + är attack-/kul-mål) = MURAR + STÄNGDA PORTAR.
-  // Fällor (spik/tjära/olja), krut-tunna, slot-torn och NPC:er blockerar INTE rörelse.
-  const cdLiveWalls = sim.castledefenseWalls.filter(w => w.hp > 0);
+  // Lokala alias (kostnads-fri re-läsning av cachade arrayer)
+  const cdAllSolids  = sim._cdAllSolids  || [];
+  const cdMoveSolids = sim._cdMoveSolids || [];
+  // cdLiveBuildings per-tick (ALLA levande byggnader, ej bara solida) — används av
+  // cdSolidsForTarget (enemy targeting) som inkluderar machinegun/bomber etc.
+  // Non-wall/gate byggnader triggerar EJ _cdFlowDirty vid tillägg, så den kan ej cachas.
   const cdLiveBuildings = sim.castledefenseBuildings.filter(b => b.hp > 0);
-  const cdSolidBuildings = cdLiveBuildings.filter(b =>
-    b.kind === 'wall' || (b.kind === 'gate' && !b.open));
-  // Destruktibla fält-strukturer (enemy-attack + kul-skada): murar + stängda portar.
-  const cdAllSolids = cdLiveWalls.concat(cdSolidBuildings);
-  // RÖRELSE-kollision (spelare + fiender): fält-strukturer + INDESTRUKTIBLA slottsväggar.
-  const cdMoveSolids = cdAllSolids.concat(sim.castledefenseCastleWalls || []);
 
   // === PLAYER COLLISION ===
   // v2 REDESIGN: spelare kan INTE längre gå igenom murar — murar + STÄNGDA portar +
@@ -3771,6 +3797,9 @@ function tickCastleDefense(sim, dt, now) {
       if (psX >= sB.x && psX <= sB.x + sB.w &&
           psY >= sB.y && psY <= sB.y + sB.h) { onSolid = true; break; }
     }
+    // C225 (perf 2026-07-07): stash på playerState så bullets.js kan slå upp onSolid
+    // i O(1) per spelare istf O(walls+buildings) per hostile-bullet × spelare.
+    ws.playerState._cdOnSolid = onSolid;
     cdAlivePlayers.push({ peerId: pid, x: psX, y: psY, _ws: ws, _onSolid: onSolid });
   }
   for (const e of sim.enemies) {
@@ -3968,9 +3997,18 @@ function tickCastleDefense(sim, dt, now) {
     // Wall-collision för enemies (skippa flyers — de ignorerar walls).
     // v2 REDESIGN: fiender blockas även av de solida slottsväggarna (cdMoveSolids) så
     // de bara kan ta sig in genom porten. Survivors behåller bara fält-strukturer.
+    // C225: wallsInRect-broadphase per pass (margin=eR+80 ger SUPERSET av overlappande väggar).
+    // Fallback till full lista om grid saknas (första tick eller under init).
     if (!e._cdFlyer) {
-      const _walls = sim.survivorsActive ? cdAllSolids : cdMoveSolids;
-      for (let _p = 0; _p < 3; _p++) resolveCtfWall(e, _walls);
+      const _grid = sim.survivorsActive ? sim._cdAllSolidsGrid : sim._cdMoveSolidsGrid;
+      const _fallback = sim.survivorsActive ? cdAllSolids : cdMoveSolids;
+      const _eMargin = (e.r || 12) + 80;
+      for (let _p = 0; _p < 3; _p++) {
+        const _near = _grid
+          ? wallsInRect(_grid, e.x - _eMargin, e.y - _eMargin, e.x + _eMargin, e.y + _eMargin)
+          : _fallback;
+        resolveCtfWall(e, _near);
+      }
     }
     // Core circle-collision för ALLA fiender (även flyers — annars kan de attacka
     // core från insidan). v1.398-fix: d=0 fallback för enemy också.
@@ -4010,10 +4048,16 @@ function tickCastleDefense(sim, dt, now) {
     // turret, Pass 2 station). Spara första wall/turret-träffen OCH första station-träffen,
     // välj wall>station efter loopen → halverar scannen, noll beteendeändring (samma
     // wall-före-station-prioritet, samma "första i listan"-tie-break per kategori).
+    // C225: wallsInRect-broadphase på cdAllSolidsGrid (enemies angriper bara väggar de
+    // berör fysiskt, e.r+1 = kontakt-radie). Fallback om grid saknas.
     let attackTarget = null;
     let attackStation = null;
     const _cr2 = (e.r + 1) * (e.r + 1);
-    for (const w of cdAllSolids) {
+    const _am = e.r + 1;
+    const _atkCands = sim._cdAllSolidsGrid
+      ? wallsInRect(sim._cdAllSolidsGrid, e.x - _am, e.y - _am, e.x + _am, e.y + _am)
+      : cdAllSolids;
+    for (const w of _atkCands) {
       if (w.hp <= 0) continue;
       const cx2 = Math.max(w.x, Math.min(e.x, w.x + w.w));
       const cy2 = Math.max(w.y, Math.min(e.y, w.y + w.h));
@@ -8946,6 +8990,11 @@ function stopSim(sim) {
   sim._cdActiveTheme = null;
   sim._cdFlowField = null;
   sim._cdFlowDirty = true;
+  // C225: rensa cachade solid-listor/grider så de rebuilds nästa match
+  sim._cdAllSolids = null;
+  sim._cdMoveSolids = null;
+  sim._cdAllSolidsGrid = null;
+  sim._cdMoveSolidsGrid = null;
   sim._cdLastWaveProcessed = -1;
   sim._cdHudBroadcastAt = 0;
   sim._cdCoreHealedThisTick = false;

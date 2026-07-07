@@ -721,6 +721,10 @@ function _pveWalls(sim) {
     if (Array.isArray(sw) && sw.length) w = sw;
   }
   sim._pveWalls = w;
+  // C225 (perf 2026-07-07): bygg spatial-grid EN gång per wave (statiska väggar per wave).
+  // Griden invalideras exakt när _pveWalls-cachen invalideras (wave-byte).
+  // ~3x snabbare bulletHitsWall + resolveWallsCircle vid 80+ stage-väggar (4-spelare campaign).
+  sim._pveWallGrid = w ? buildWallGrid(w) : null;
   return w;
 }
 
@@ -1131,14 +1135,26 @@ function updateBullets(sim, dt, now) {
     // sim_start.stageWalls (per wave) / customStages[].walls. Skott (även fiende-skott)
     // stoppas så man inte kan skjuta genom hus. V1-webben skickar aldrig fältet
     // (solo-story kör lokal sim med klient-kollision) → exakt gamla beteendet utan walls.
+    // C225 (perf 2026-07-07): wallsInRect-broadphase på _pveWallGrid (byggs EN gång per
+    // wave i _pveWalls, ~3x snabbare vid 80+ stage-väggar i 4-spelare campaign).
     const _pveW = _pveWalls(sim);
-    if (_pveW && bulletHitsWall(b, _pveW)) {
-      if (ricochetOff(b, _pveW)) continue;
-      if (b.explosive && !b.hostile) {
-        explode(sim, b.x, b.y, b.explosive, b.dmg, b.ownerPid, b.weaponId);
+    if (_pveW) {
+      const _br = b.r || 4;
+      const _bx0 = Math.min(typeof b._prevX === 'number' ? b._prevX : b.x, b.x) - _br;
+      const _by0 = Math.min(typeof b._prevY === 'number' ? b._prevY : b.y, b.y) - _br;
+      const _bx1 = Math.max(typeof b._prevX === 'number' ? b._prevX : b.x, b.x) + _br;
+      const _by1 = Math.max(typeof b._prevY === 'number' ? b._prevY : b.y, b.y) + _br;
+      const _pveWCands = sim._pveWallGrid
+        ? wallsInRect(sim._pveWallGrid, _bx0, _by0, _bx1, _by1)
+        : _pveW;
+      if (bulletHitsWall(b, _pveWCands)) {
+        if (ricochetOff(b, _pveWCands)) continue;
+        if (b.explosive && !b.hostile) {
+          explode(sim, b.x, b.y, b.explosive, b.dmg, b.ownerPid, b.weaponId);
+        }
+        bullets.splice(i, 1);
+        continue;
       }
-      bullets.splice(i, 1);
-      continue;
     }
     // PvP: wall-collision. Skott dör vid wall-hit så cover faktiskt skyddar.
     if (sim.ctfActive && bulletHitsWall(b, CTF_ARENA.walls)) {
@@ -1470,26 +1486,10 @@ function updateBullets(sim, dt, now) {
         if (ws.playerState.cdDowned) continue;
         // v1.423: CD player som står PÅ solid byggnad = immune mot hostile bullets.
         // Walls = full cover (matchar melee-immune i room-sim.js).
-        if (sim.castledefenseActive && b.hostile) {
-          const psP = ws.playerState;
-          let onSolidB = false;
-          if (sim.castledefenseWalls) {
-            for (const sB of sim.castledefenseWalls) {
-              if (sB.hp <= 0) continue;
-              if (psP.x >= sB.x && psP.x <= sB.x + sB.w &&
-                  psP.y >= sB.y && psP.y <= sB.y + sB.h) { onSolidB = true; break; }
-            }
-          }
-          if (!onSolidB && sim.castledefenseBuildings) {
-            for (const sB of sim.castledefenseBuildings) {
-              if (sB.hp <= 0) continue;
-              if (sB.kind === 'spike_trap' || sB.kind === 'slow_trap') continue;
-              if (psP.x >= sB.x && psP.x <= sB.x + sB.w &&
-                  psP.y >= sB.y && psP.y <= sB.y + sB.h) { onSolidB = true; break; }
-            }
-          }
-          if (onSolidB) continue;
-        }
+        // C225 (perf 2026-07-07): _cdOnSolid precomputed EN gång per spelare per tick
+        // i tickCastleDefense cdAlivePlayers-loopen (room-sim.js ~3774) — var O(walls+buildings)
+        // per bullet×player; nu O(1) lookup. Flaggan sätts INNAN updateBullets körs.
+        if (sim.castledefenseActive && b.hostile && ws.playerState._cdOnSolid) continue;
         const dx = ws.playerState.x - b.x, dy = ws.playerState.y - b.y;
         const rsum = 14 + b.r;
         if (dx * dx + dy * dy < rsum * rsum) {
