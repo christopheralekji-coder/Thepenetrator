@@ -59,8 +59,14 @@ class R {
   str() { const n = this.u8(); const s = this.b.toString('utf8', this.o, this.o + n); this.o += n; return s; }
 }
 
+// PERF S3: modul-global scratch-buffer — återanvänds per encode (reset o=0 varje anrop).
+// Node är single-threaded → ingen race. done() returnerar en kopia av det använda fönstret,
+// varje anropare äger sin buffer. Eliminerar ~30MB/s off-heap-allokering (8 peers × 60Hz × 64KB).
+const _encScratch = new W(65536);
+
 function encodeWorld(pkt) {
-  const w = new W();
+  _encScratch.o = 0;
+  const w = _encScratch;
   w.u8(MAGIC);
   w.u16(pkt.seq || 0);
   w.u16(pkt.ack || 0);   // AAA #6: senast behandlade input-seq för peeren (reconcile)

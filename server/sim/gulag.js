@@ -646,17 +646,28 @@ function tickGulag(sim, dt, now) {
 
     if (winner) { resolveGulag(sim, m, winner, loser, now); continue; }
 
-    // DYNAMISK state-broadcast (~8Hz)
-    if (now - m.lastTickEmit > 33) {   // ~30Hz (var 120ms/~8Hz) → mjukare ring/plattform/telegraf
+    // DYNAMISK state-broadcast ~10Hz. S3-fix: var > 33ms = 30Hz → regredierat från design
+    // (kommentaren sa 120ms/~8Hz). Återställt till 100ms. _aud begränsar till duellanter +
+    // spectators/köade; levande BR-spelare behöver inte paketen och ignorerade dem ändå
+    // (GulagLayer filtrar på matchId). drain-loopen respekterar _aud → per-peer JSON.
+    if (now - m.lastTickEmit > 100) {
       m.lastTickEmit = now;
+      // Audience: duellanter alltid med; dessutom alla spectators/gulag-köade
+      const _tAud = [m.a, m.b];
+      for (const [_tp, _tw] of sim.room.members) {
+        if (_tp === m.a || _tp === m.b) continue;
+        const _tps = _tw && _tw.playerState;
+        if (_tps && (_tps.spectating || _tps.gulagState)) _tAud.push(_tp);
+      }
       sim.eventQueue.push({
         type: 'gulag_tick', matchId: m.id, a: m.a, b: m.b,
-        platformR: Math.round(m.platformR || 0), ringR: Math.round(m.ringR || 0), // v1.807: || 0 (ej NaN→null på tråden)
+        platformR: Math.round(m.platformR || 0), ringR: Math.round(m.ringR || 0),
         fallen: m.fallenTiles.slice(),
         warn: (m.warningTiles || []).map(w => w.idx),
         bombHolder: m.bombHolder, bombMs: m.bombEndsAt ? Math.max(0, m.bombEndsAt - now) : 0,
         pu: m.powerups.map(p => ({ id: p.id, x: Math.round(p.x), y: Math.round(p.y), kind: p.kind })),
         timeLeft: Math.max(0, Math.round((game.maxMs - (now - m.startedAt)) / 1000)),
+        _aud: _tAud,
       });
     }
   }

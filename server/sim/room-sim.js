@@ -7119,16 +7119,7 @@ function broadcastWorld(sim, now) {
     _jsonPickups = sim.pickups.map(p => ({ x: Math.round(p.x), y: Math.round(p.y), t: p.type }));
     return _jsonPickups;
   };
-  let _jsonCritters = null;
-  const getJsonCritters = () => {
-    if (_jsonCritters) return _jsonCritters;
-    _jsonCritters = [];
-    if (sim.battleroyaleActive && sim.brCritters) {
-      for (const c of sim.brCritters) if (!c.dead) _jsonCritters.push({ id: c.id, t: c.type, x: Math.round(c.x), y: Math.round(c.y), f: c._face || 1, m: c._moving ? 1 : 0 });
-    }
-    return _jsonCritters;
-  };
-  let _critterMsg = null;   // memoiserad br_critters-JSON (byggs en gang per broadcast)
+  // (S3: getJsonCritters + _critterMsg borttagna — critters byggs nu per-peer med box-cull)
 
   // Drain event-queue. Batch ALLA events i ett enda 'sim_events'-meddelande per
   // peer per tick — sparar 1 JSON.stringify + 1 ws.send per event per client.
@@ -7144,8 +7135,12 @@ function broadcastWorld(sim, now) {
     // st (additivt, transport-pass 2026-06-10): server-tidsstämpel på batchen —
     // JSON-klienter (Godot) använder den för event↔world-tidslinjering i
     // interpolationsbufferten. V1-webben läser bara .events → okänt fält ignoreras.
-    const json = JSON.stringify({ type: 'sim_events', st: now, events });
-    for (const [, ws] of sim.room.members) {
+    // S3 audience-filter: events med _aud:[] skickas bara till listade peers (t.ex.
+    // gulag_tick → bara duellanter + spectators, ej alla levande BR-spelare).
+    // Normal-case (ingen _aud) → snabb delad JSON-sträng som förut.
+    const _hasAud = events.some(ev => ev._aud);
+    let _sharedJson = null;
+    for (const [peerId, ws] of sim.room.members) {
       if (ws.readyState !== 1) continue;
       // v1.431: Defensive backpressure — om WS-buffert är > 2MB är klienten så
       // efter att den är effektivt död. Logga + släpp paketet (skicka inte) men
@@ -7168,6 +7163,15 @@ function broadcastWorld(sim, now) {
           setTimeout(() => { try { ws.terminate(); } catch (e) {} }, 2000);
         }
         continue;
+      }
+      let json;
+      if (_hasAud) {
+        const batch = events.filter(ev => !ev._aud || ev._aud.includes(peerId));
+        if (batch.length === 0) continue;
+        json = JSON.stringify({ type: 'sim_events', st: now, events: batch });
+      } else {
+        if (!_sharedJson) _sharedJson = JSON.stringify({ type: 'sim_events', st: now, events });
+        json = _sharedJson;
       }
       try { ws.send(json); } catch (e) {}
     }
@@ -7193,11 +7197,25 @@ function broadcastWorld(sim, now) {
     // world-paket → skippa hela per-peer-encoden (sparar full world-encode/bot/tick) +
     // håller bot-ids ur lastSentEnemyByPeer/seqByPeer/_peerFullAt.
     if (ws._isBot) continue;
-    // CRITTERS (vilt): eget OTILLFORLITLIGT JSON-msg (~20Hz). Kan EJ rida world-paketet
-    // da bin-peers far BINAR world (encodeWorld kanner ej faltet) -> critters droppades.
-    if (sim.battleroyaleActive && ws.readyState === 1 && (sim._worldCastNo % 3) === 0) {
-      if (_critterMsg === null) { const _cr = getJsonCritters(); _critterMsg = _cr.length ? JSON.stringify({ type: 'br_critters', st: now, critters: _cr }) : ''; }
-      if (_critterMsg) { try { (ws.sendUnreliable ? ws.sendUnreliable(_critterMsg) : ws.send(_critterMsg)); } catch (e) {} }
+    // CRITTERS (vilt): per-peer box-cull ~700px, 10Hz (var 6:e cast). S3-fix:
+    // Förut 60 djur × okullad JSON × 20Hz = ~70KB/s per peer (4× world-snapshot).
+    // Nu: bara synliga djur (~0-6 st) per peer → ~3KB/s. Klient lerpar redan (k=12*delta)
+    // → 10Hz är visuellt tillräckligt. Eget OTILLFÖRLITLIGT msg (kan ej rida world —
+    // bin-peers tar binär world; encodeWorld känner ej critters-fältet).
+    if (sim.battleroyaleActive && ws.readyState === 1 && (sim._worldCastNo % 6) === 0) {
+      const _cpx = (ws.playerState && ws.playerState.x) || 1000;
+      const _cpy = (ws.playerState && ws.playerState.y) || 1000;
+      const _cr = [];
+      if (sim.brCritters) {
+        for (const c of sim.brCritters) {
+          if (c.dead) continue;
+          if (Math.abs(c.x - _cpx) < 700 && Math.abs(c.y - _cpy) < 700)
+            _cr.push({ id: c.id, t: c.type, x: Math.round(c.x), y: Math.round(c.y), f: c._face || 1, m: c._moving ? 1 : 0 });
+        }
+      }
+      if (_cr.length) {
+        try { const _cm = JSON.stringify({ type: 'br_critters', st: now, critters: _cr }); (ws.sendUnreliable ? ws.sendUnreliable(_cm) : ws.send(_cm)); } catch (e) {}
+      }
     }
     // Godot/V2-klienter: world-snapshot som JSON-text, alltid full lista (trivial
     // klient-rendering — ersätt hela listan) men bara var JSON_WORLD_EVERY:e
