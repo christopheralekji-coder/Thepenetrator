@@ -20,6 +20,7 @@ const groups = require('./groups'); // AUDIT C277/C272: socket-rebind + roster-p
 // ACCOUNTS_DATA_DIR-override gör att prober kan peka mot temp-katalog.
 const DATA_DIR = process.env.ACCOUNTS_DATA_DIR || path.join(__dirname, 'data');
 const DATA_FILE = path.join(DATA_DIR, 'accounts.json');
+const ACCOUNTS_SUBDIR = path.join(DATA_DIR, 'accounts'); // per-konto-filer (DEL 1)
 
 const FRIENDS_CAP = 100;
 const REQUESTS_CAP = 50;
@@ -58,6 +59,9 @@ function boundOf(acc) {
 let H = null;               // helpers från server.js: { send, roomInfo }
 let _saveTimer = null;
 let _dirty = false;
+const _dirtySet = new Set();    // konto-id:n vars filer behöver skrivas (DEL 1)
+const _deletedSet = new Set();  // konto-id:n vars filer ska tas bort (DEL 1)
+let _pendingWrites = 0;         // antal pågående async fil-ops (ersätter _saving)
 
 function computeLevel(stats) {
   // v2 konto-progression (2026-06-12, additivt): klienten räknar sin riktiga
@@ -134,7 +138,7 @@ function recordNameAttempt(acc, name, ok, adm) {
   if (last && last.name === name && !!last.ok === !!ok && !!last.adm === !!adm) return;
   h.push({ name: name, ok: !!ok, adm: !!adm, t: Date.now() });
   if (h.length > 50) acc.nameHistory = h.slice(-50);
-  markDirty();
+  markDirty(acc.id);
 }
 
 function sanitizeStats(raw, prev) {
@@ -246,7 +250,7 @@ function creditMatchEndXp(ws, mode, kills, won) {
   if (!acc) return null;
   const gained = matchXpAward(kills, won);
   creditAxp(acc, gained);
-  markDirty();
+  markDirty(acc.id);
   console.log('[XP] credit', acc.id, mode, 'kills=' + (kills | 0), 'won=' + !!won, '→ +' + gained + ' axp, alevel=' + acc.stats.alevel);
   return { peerId: ws.id, axp: acc.stats.axp, alevel: acc.stats.alevel, gained: gained };
 }
@@ -347,85 +351,146 @@ function arrRemove(arr, v) {
   if (i >= 0) arr.splice(i, 1);
 }
 
-// ── Load / save (debounce:ad 3s + flush vid SIGTERM) ─────────────────────────
+// ── Load / save (per-konto-filer, debounce:ad 3s + flush vid SIGTERM) ──────────
+// DEL 1: Per-konto-filer — O(dirty) i st.f. O(alla konton) per write-cykel.
+// Hjälpfunktion: ladda ETT råkonto-objekt in i accounts-Map:en + indices.
+function _loadAccountFromRaw(a) {
+  if (!a || typeof a !== 'object' || typeof a.id !== 'string' || typeof a.secret !== 'string') return false;
+  accounts.set(a.id, {
+    id: a.id,
+    secret: a.secret,
+    name: sanitizeName(a.name) || 'Spelare',
+    avatar: (a.avatar && typeof a.avatar === 'object') ? a.avatar : {},
+    stats: loadStats(a.stats),
+    level: 1,
+    friends: sanitizeFriendIds(a.friends, a.id),
+    reqIn: sanitizeFriendIds(a.reqIn, a.id).slice(0, REQUESTS_CAP),
+    reqOut: sanitizeFriendIds(a.reqOut, a.id).slice(0, REQUESTS_CAP),
+    lastSeen: +a.lastSeen || 0,
+    vault: (a.vault && typeof a.vault === 'object') ? a.vault : null,
+    referredBy: (typeof a.referredBy === 'string') ? a.referredBy : '',
+    banned: !!a.banned,
+    nameHistory: Array.isArray(a.nameHistory) ? a.nameHistory.slice(-50) : [],
+  });
+  const acc = accounts.get(a.id);
+  acc.level = computeLevel(acc.stats);
+  if (typeof a.email === 'string' && a.email) acc.email = a.email.toLowerCase();
+  if (typeof a.pwHash === 'string' && a.pwHash) acc.pwHash = a.pwHash;
+  if (typeof a.pwSalt === 'string' && a.pwSalt) acc.pwSalt = a.pwSalt;
+  if (typeof a.googleSub === 'string' && a.googleSub) acc.googleSub = a.googleSub;
+  if (typeof a.appleSub === 'string' && a.appleSub) acc.appleSub = a.appleSub;
+  if (typeof a.gcPlayerId === 'string' && a.gcPlayerId) acc.gcPlayerId = a.gcPlayerId;
+  if (a._xpMigrated) acc._xpMigrated = true;
+  if (a._economyForce) acc._economyForce = true;
+  if (a._nameForce) acc._nameForce = true;
+  indexAccount(acc);
+  return true;
+}
+
 function load() {
+  // 1) Per-konto-katalog finns → auktoritativ (migrering klar eller pågår)
+  if (fs.existsSync(ACCOUNTS_SUBDIR)) {
+    let files;
+    try { files = fs.readdirSync(ACCOUNTS_SUBDIR).filter((f) => f.endsWith('.json')); }
+    catch (e) { console.warn('[ACCT] readdirSync misslyckades —', e.message); files = []; }
+    for (const file of files) {
+      try {
+        const raw = JSON.parse(fs.readFileSync(path.join(ACCOUNTS_SUBDIR, file), 'utf8'));
+        _loadAccountFromRaw(raw);
+      } catch (e) {
+        console.warn('[ACCT] korrupt kontofil', file, '— hoppar:', e.message);
+      }
+    }
+    console.log('[ACCT] laddade', accounts.size, 'konton från', ACCOUNTS_SUBDIR);
+    return;
+  }
+  // 2) Gamla monoliten finns → ladda + migrera till per-konto-filer
+  if (!fs.existsSync(DATA_FILE)) return;
   try {
-    if (!fs.existsSync(DATA_FILE)) return;
     const raw = JSON.parse(fs.readFileSync(DATA_FILE, 'utf8'));
     if (!raw || !Array.isArray(raw.accounts)) return;
-    for (const a of raw.accounts) {
-      if (!a || typeof a !== 'object' || typeof a.id !== 'string' || typeof a.secret !== 'string') continue;
-      accounts.set(a.id, {
-        id: a.id,
-        secret: a.secret,
-        name: sanitizeName(a.name) || 'Spelare',
-        avatar: (a.avatar && typeof a.avatar === 'object') ? a.avatar : {},
-        stats: loadStats(a.stats),
-        level: 1,
-        friends: sanitizeFriendIds(a.friends, a.id),
-        reqIn: sanitizeFriendIds(a.reqIn, a.id).slice(0, REQUESTS_CAP),
-        reqOut: sanitizeFriendIds(a.reqOut, a.id).slice(0, REQUESTS_CAP),
-        lastSeen: +a.lastSeen || 0,
-        vault: (a.vault && typeof a.vault === 'object') ? a.vault : null,
-        referredBy: (typeof a.referredBy === 'string') ? a.referredBy : '',
-        banned: !!a.banned,   // admin-ban (persisterar — load() återskapar explicita fält)
-        nameHistory: Array.isArray(a.nameHistory) ? a.nameHistory.slice(-50) : [],   // namn-historik
-      });
-      const acc = accounts.get(a.id);
-      acc.level = computeLevel(acc.stats);
-      // Bind-lagret: provider-fält (utelämnas i JSON om obundna)
-      if (typeof a.email === 'string' && a.email) acc.email = a.email.toLowerCase();
-      if (typeof a.pwHash === 'string' && a.pwHash) acc.pwHash = a.pwHash;
-      if (typeof a.pwSalt === 'string' && a.pwSalt) acc.pwSalt = a.pwSalt;
-      if (typeof a.googleSub === 'string' && a.googleSub) acc.googleSub = a.googleSub;
-      if (typeof a.appleSub === 'string' && a.appleSub) acc.appleSub = a.appleSub;
-      if (typeof a.gcPlayerId === 'string' && a.gcPlayerId) acc.gcPlayerId = a.gcPlayerId;
-      // server-auth XP: migrering redan utförd → återställ flaggan (saveNow persisterar den
-      // i råobjektet). Utan detta nollas _xpMigrated vid varje omstart → migreringen kör om
-      // på första acct_update och skulle adoptera en klient-uppblåst nivå (fusk-fönster).
-      if (a._xpMigrated) acc._xpMigrated = true;
-      // admin-force (ekonomi/namn) ska överleva en server-omstart — annars tappas en admin-
-      // ändring som gjordes strax före omstart (spelaren adopterar den aldrig → kan reverta).
-      if (a._economyForce) acc._economyForce = true;
-      if (a._nameForce) acc._nameForce = true;
-      indexAccount(acc);
+    for (const a of raw.accounts) _loadAccountFromRaw(a);
+    console.log('[ACCT] laddade', accounts.size, 'konton från monoliten — migrerar till per-konto-filer');
+    // Skapa katalogen direkt (synkront) så den finns vid nästa boot
+    fs.mkdirSync(ACCOUNTS_SUBDIR, { recursive: true });
+    // Byt namn på monoliten som backup (gör detta INNAN async-writarna startar så
+    // att en krasch under migreringen lämnar backupen kvar och inga data tappas)
+    const backupFile = DATA_FILE + '.pre-split-backup';
+    if (!fs.existsSync(backupFile)) {
+      try { fs.renameSync(DATA_FILE, backupFile); console.log('[ACCT] monoliten sparad som backup:', backupFile); }
+      catch (e) { console.warn('[ACCT] kunde inte döpa om monoliten —', e.message); }
     }
-    console.log('[ACCT] laddade', accounts.size, 'konton från', DATA_FILE);
+    // Starta async-writes för alla konton
+    for (const id of accounts.keys()) _dirtySet.add(id);
+    saveNow();
   } catch (e) {
-    console.warn('[ACCT] kunde inte läsa', DATA_FILE, '—', e.message);
+    console.warn('[ACCT] kunde inte läsa monoliten', DATA_FILE, '—', e.message);
   }
 }
 
-let _saving = false;   // pågående async-write (förhindra överlappande skrivningar)
-
-// PERF-FIX (2026-06-13, "feta spikes då och då"): konto-saven gjorde förr en
-// SYNKRON fs.writeFileSync av ALLA konton — det blockerade hela Node-event-loopen
-// medan filen skrevs (10-tals/100-tals ms på Fly-volymen). Saven debounce:as till
-// var 3:e sekund medan kontot är "dirty" (XP/mynt från kills mitt i matchen) →
-// sim-tick:en + world-broadcasten frös var ~3:e sekund → alla enemies stod still
-// och "flög ikapp" sen. Nu: ASYNKRON write. Atomisk temp+rename behålls.
+// DEL 1: Per-konto async save — O(dirty) inte O(alla). Atomisk tmp+rename per fil.
 function saveNow() {
-  _dirty = false;
   if (_saveTimer) { clearTimeout(_saveTimer); _saveTimer = null; }
-  if (_saving) {   // en write pågår → markera om och schemalägg ny efteråt
+  if (_pendingWrites > 0) {
+    // En annan batch pågår — markera om och låt writeDone schemalägg ny körning
     _dirty = true;
-    if (!_saveTimer) _saveTimer = setTimeout(() => { _saveTimer = null; if (_dirty) saveNow(); }, 3000);
     return;
   }
-  let data;
-  try {
-    fs.mkdirSync(DATA_DIR, { recursive: true });
-    data = JSON.stringify({ accounts: [...accounts.values()] });
-  } catch (e) { console.warn('[ACCT] save-prep misslyckades —', e.message); return; }
-  _saving = true;
-  const tmp = DATA_FILE + '.tmp';
-  fs.writeFile(tmp, data, (err) => {
-    if (err) { _saving = false; console.warn('[ACCT] async write misslyckades —', err.message); return; }
-    fs.rename(tmp, DATA_FILE, (err2) => {
-      _saving = false;
-      if (err2) console.warn('[ACCT] async rename misslyckades —', err2.message);
+  _dirty = false;
+  // Snabba ut om ingenting ändrats
+  if (_dirtySet.size === 0 && _deletedSet.size === 0) return;
+
+  // Snapshot + rensa setarna innan async-loopen (nya markDirty-anrop under
+  // skrivningen hamnar i setarna igen och hanteras i nästa körning)
+  const toWrite = [..._dirtySet];
+  const toDelete = [..._deletedSet];
+  _dirtySet.clear();
+  _deletedSet.clear();
+
+  try { fs.mkdirSync(ACCOUNTS_SUBDIR, { recursive: true }); }
+  catch (e) {
+    console.warn('[ACCT] mkdirSync misslyckades —', e.message);
+    // Återlägg i dirty-set så nästa körning försöker igen
+    for (const id of toWrite) _dirtySet.add(id);
+    for (const id of toDelete) _deletedSet.add(id);
+    _dirty = true;
+    return;
+  }
+
+  const t0 = Date.now();
+  _pendingWrites = toWrite.length + toDelete.length;
+
+  function writeDone() {
+    _pendingWrites--;
+    if (_pendingWrites === 0) {
+      const ms = Date.now() - t0;
+      if (ms > 50) console.warn('[ACCT] save', toWrite.length + ' skriv/' + toDelete.length + ' radera tog ' + ms + 'ms');
+      if (_dirty && !_saveTimer) _saveTimer = setTimeout(() => { _saveTimer = null; if (_dirty) saveNow(); }, 3000);
+    }
+  }
+
+  for (const id of toWrite) {
+    const acc = accounts.get(id);
+    if (!acc) { writeDone(); continue; }   // raderades mellan markDirty och save → hoppa
+    let data;
+    try { data = JSON.stringify(acc); } catch (e) {
+      console.warn('[ACCT] stringify-fel', id, '—', e.message); writeDone(); continue;
+    }
+    const file = path.join(ACCOUNTS_SUBDIR, id + '.json');
+    const tmp = file + '.tmp';
+    fs.writeFile(tmp, data, (err) => {
+      if (err) { console.warn('[ACCT] skriv-fel', id, '—', err.message); writeDone(); return; }
+      fs.rename(tmp, file, (err2) => { if (err2) console.warn('[ACCT] rename-fel', id, '—', err2.message); writeDone(); });
     });
-  });
+  }
+
+  for (const id of toDelete) {
+    const file = path.join(ACCOUNTS_SUBDIR, id + '.json');
+    fs.unlink(file, (err) => {
+      if (err && err.code !== 'ENOENT') console.warn('[ACCT] unlink-fel', id, '—', err.message);
+      writeDone();
+    });
+  }
 }
 
 function saveNowSync() {
@@ -433,23 +498,55 @@ function saveNowSync() {
   _dirty = false;
   if (_saveTimer) { clearTimeout(_saveTimer); _saveTimer = null; }
   try {
-    fs.mkdirSync(DATA_DIR, { recursive: true });
-    const tmp = DATA_FILE + '.tmp';
-    fs.writeFileSync(tmp, JSON.stringify({ accounts: [...accounts.values()] }));
-    fs.renameSync(tmp, DATA_FILE);
+    fs.mkdirSync(ACCOUNTS_SUBDIR, { recursive: true });
+    const t0 = Date.now(); let written = 0;
+    for (const id of _dirtySet) {
+      const acc = accounts.get(id);
+      if (!acc) continue;
+      const file = path.join(ACCOUNTS_SUBDIR, id + '.json');
+      const tmp = file + '.tmp';
+      try { fs.writeFileSync(tmp, JSON.stringify(acc)); fs.renameSync(tmp, file); written++; }
+      catch (e) { console.warn('[ACCT] sync-skriv-fel', id, '—', e.message); }
+    }
+    _dirtySet.clear();
+    for (const id of _deletedSet) {
+      try { fs.unlinkSync(path.join(ACCOUNTS_SUBDIR, id + '.json')); }
+      catch (e) { if (e.code !== 'ENOENT') console.warn('[ACCT] sync-unlink-fel', id); }
+    }
+    _deletedSet.clear();
+    if (written > 0) console.log('[ACCT] sync-save', written, 'konton på', (Date.now() - t0) + 'ms');
   } catch (e) {
     console.warn('[ACCT] sync save misslyckades —', e.message);
   }
 }
 
-function markDirty() {
+// markDirty(id): lägg ett specifikt konto i skriv-kön.
+// markDirty() utan id: fallback dirty-all (varning + bakåtkompatibilitet).
+function markDirty(id) {
+  if (id != null) {
+    _dirtySet.add(String(id));
+  } else {
+    // Fallback: dirty-all. Varnar i loggen — hitta och åtgärda call-sitet.
+    console.warn('[ACCT] markDirty() anropad utan id — dirty-all fallback (felsök call-site)');
+    for (const k of accounts.keys()) _dirtySet.add(k);
+  }
+  _dirty = true;
+  if (_saveTimer) return;
+  _saveTimer = setTimeout(() => { _saveTimer = null; if (_dirty) saveNow(); }, 3000);
+}
+
+// markDeleted(id): lägg ett konto i radera-kön (tas bort ur _dirtySet + fil raderas).
+function markDeleted(id) {
+  id = String(id);
+  _dirtySet.delete(id);   // onödigt att skriva en fil vi strax raderar
+  _deletedSet.add(id);
   _dirty = true;
   if (_saveTimer) return;
   _saveTimer = setTimeout(() => { _saveTimer = null; if (_dirty) saveNow(); }, 3000);
 }
 
 process.on('SIGTERM', () => {
-  try { if (_dirty || _saving) saveNowSync(); } catch (e) {}
+  try { saveNowSync(); } catch (e) {}
   process.exit(0);
 });
 
@@ -586,7 +683,7 @@ function onDisconnect(ws) {
   const st = _updState.get(id);
   if (st && st.timer) { clearTimeout(st.timer); st.timer = null; }
   const acc = accounts.get(id);
-  if (acc) { acc.lastSeen = Date.now(); markDirty(); }
+  if (acc) { acc.lastSeen = Date.now(); markDirty(id); }
   notifyFriendsOf(id);
 }
 
@@ -637,10 +734,31 @@ setInterval(() => {
   for (const [t, s] of sessionTokens) if (now > s.exp) sessionTokens.delete(t);
 }, 10 * 60 * 1000).unref();
 
+// ── DEL 4: Rate-limit på konto-skapande (token-bucket per IP) ───────────────
+// Max 5 nya konton per IP per 10 min. Påverkar ALDRIG inloggning på befintliga konton.
+const _acctCreateBucket = new Map(); // ip → { count, windowStart }
+const ACCT_CREATE_WINDOW_MS = 10 * 60 * 1000; // 10 min
+const ACCT_CREATE_MAX = parseInt(process.env.ACCT_CREATE_MAX_PER_10MIN, 10) || 5;
+setInterval(() => {
+  const now = Date.now();
+  for (const [ip, b] of _acctCreateBucket) { if (now - b.windowStart >= ACCT_CREATE_WINDOW_MS * 2) _acctCreateBucket.delete(ip); }
+}, ACCT_CREATE_WINDOW_MS).unref();
+function acctCreateAllowed(ip) {
+  if (!ip) return true;   // ingen IP (lokal/intern) → alltid tillåten
+  const now = Date.now();
+  const b = _acctCreateBucket.get(ip) || { count: 0, windowStart: now };
+  if (now - b.windowStart >= ACCT_CREATE_WINDOW_MS) { b.count = 0; b.windowStart = now; }
+  if (b.count >= ACCT_CREATE_MAX) { _acctCreateBucket.set(ip, b); return false; }
+  b.count++;
+  _acctCreateBucket.set(ip, b);
+  return true;
+}
+
 // Konto-resolution från credentials (id+secret) + profil-applicering. DELAS av
 // HTTPS-handshaket OCH legacy-secret-login. Returnerar acc, eller null vid auth-fel.
 // H-FRI (anropas även från HTTP-tråden där H ej är satt).
-function resolveAccountFromCreds(msg) {
+// ip (valfri): klientens IP — används BARA vid nytt konto (rate-limit).
+function resolveAccountFromCreds(msg, ip) {
   const secret = typeof msg.secret === 'string' ? msg.secret.slice(0, 128) : '';
   if (secret.length < 16) return null;
   let id = typeof msg.id === 'string' ? msg.id.trim() : '';
@@ -650,6 +768,11 @@ function resolveAccountFromCreds(msg) {
   } else {
     // id okänt (Render-dataförlust) eller saknas → skapa konto. Klientens id
     // återanvänds om giltigt + ledigt, annars nytt.
+    // DEL 4: rate-limit per IP — förhindrar massuttag av konton.
+    if (!acctCreateAllowed(ip || '')) {
+      console.warn('[ACCT] rate-limit konto-skapande IP:', ip || '(okänd)');
+      return null;
+    }
     if (!/^[0-9]{1,16}$/.test(id) || accounts.has(id)) id = genAccountId();
     acc = {
       id, secret,
@@ -692,7 +815,7 @@ function resolveAccountFromCreds(msg) {
   // Resync-modellen: klientens friends-lista ERSÄTTER serverns (utelämnat → behåll).
   if (Array.isArray(msg.friends)) acc.friends = sanitizeFriendIds(msg.friends, acc.id);
   acc.lastSeen = Date.now();
-  markDirty();
+  markDirty(acc.id);
   return acc;
 }
 
@@ -738,7 +861,7 @@ function bindSocketToAccount(ws, acc) {
   ws.accountId = acc.id;
   online.set(acc.id, ws);
   acc.lastSeen = Date.now();
-  markDirty();
+  markDirty(acc.id);
   H.send(ws, Object.assign({ type: 'acct_logged_in' }, loginPayload(acc)));
   // ADOPTIONS-SCOPING: markera att DENNA socket fick (ev.) force-flaggorna i sin loginPayload.
   // Bara en socket som faktiskt fick dem får senare KONSUMERA dem i handleUpdate. En redan-
@@ -766,7 +889,7 @@ function handleLogin(ws, msg) {
   }
   // LEGACY: secret direkt. Säkert över WSS/TLS (lokal test) + HTTPS-fallback;
   // över plaintext-UDP osäkert → V2-prod-klienten använder token-vägen ovan.
-  const acc = resolveAccountFromCreds(msg);
+  const acc = resolveAccountFromCreds(msg, ws._remoteIp || '');
   if (!acc) { sendErr(ws, 'auth'); return; }
   bindSocketToAccount(ws, acc);
 }
@@ -817,7 +940,7 @@ function handleSessionHttp(req, res) {
     try {
       const op = typeof msg.op === 'string' ? msg.op : 'guest';
       if (op === 'guest') {
-        const acc = resolveAccountFromCreds(msg);
+        const acc = resolveAccountFromCreds(msg, _adminIp(req));
         if (!acc) { res.writeHead(401, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ error: 'auth' })); return; }
         if (isBanned(acc)) { res.writeHead(403, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ error: 'banned' })); return; }
         const token = issueSession(acc.id);
@@ -935,7 +1058,7 @@ function handleUpdate(ws, msg) {
     if (adopted) { me._economyForce = false; ws._forceEcon = false; }
   }
   if (nameForced && ws._forceName) { me._nameForce = false; ws._forceName = false; }
-  markDirty();
+  markDirty(me.id);
   sendOk(ws, 'update');
 }
 
@@ -1013,7 +1136,8 @@ function handleFriendRequest(ws, msg) {
   if (target.reqIn.length >= REQUESTS_CAP || me.reqOut.length >= REQUESTS_CAP) { sendErr(ws, 'full'); return; }
   target.reqIn.push(me.id);
   me.reqOut.push(toId);
-  markDirty();
+  markDirty(me.id);
+  markDirty(target.id);
   sendOk(ws, 'request');
   const tws = online.get(toId);
   if (tws) H.send(tws, { type: 'acct_request_in', from: { id: me.id, name: me.name, avatar: me.avatar, level: me.level } });
@@ -1033,7 +1157,8 @@ function handleFriendAccept(ws, msg) {
   arrRemove(other.reqIn, me.id);
   if (!me.friends.includes(fromId)) me.friends.push(fromId);
   if (!other.friends.includes(me.id)) other.friends.push(me.id);
-  markDirty();
+  markDirty(me.id);
+  markDirty(other.id);
   sendOk(ws, 'accept');
   // Ömsesidig vänskap → båda (om online) får friends_update direkt
   if (online.has(me.id)) sendFriendsUpdate(me.id);
@@ -1048,7 +1173,8 @@ function handleFriendDecline(ws, msg) {
   if (!me.reqIn.includes(fromId)) { sendErr(ws, 'notfound'); return; }
   arrRemove(me.reqIn, fromId);
   if (other) arrRemove(other.reqOut, me.id);
-  markDirty();
+  markDirty(me.id);
+  if (other) markDirty(other.id);
   sendOk(ws, 'decline');
   if (online.has(me.id)) sendFriendsUpdate(me.id);
   if (other && online.has(fromId)) sendFriendsUpdate(fromId);
@@ -1062,7 +1188,8 @@ function handleFriendRemove(ws, msg) {
   arrRemove(me.friends, id);
   const other = accounts.get(id);
   if (other) arrRemove(other.friends, me.id);
-  markDirty();
+  markDirty(me.id);
+  if (other) markDirty(other.id);
   sendOk(ws, 'remove');
   if (online.has(me.id)) sendFriendsUpdate(me.id);
   if (other && online.has(id)) sendFriendsUpdate(id);
@@ -1202,7 +1329,7 @@ function coreEmailBind(me, msg) {
   me.pwSalt = salt.toString('hex');
   me.pwHash = scryptHash(password, salt).toString('hex');
   emailIdx.set(email, me.id);
-  markDirty();
+  markDirty(me.id);
   return { kind: 'bind', what: 'email_bind', bound: boundOf(me) };
 }
 function coreEmailLogin(msg) {
@@ -1345,14 +1472,14 @@ async function handleGoogleCallback(req, res) {
       if (me.googleSub && me.googleSub !== sub) googleIdx.delete(me.googleSub);
       me.googleSub = sub;                              // bind på BEFINTLIGT konto (gäst el. riktigt)
       googleIdx.set(sub, me.id);
-      markDirty();
+      markDirty(me.id);
       safeSend(ws, { type: 'acct_ok', what: 'google_bind', bound: boundOf(me) });
     } else if (ownerAcc) {
       if (ws) sendSwitchRaw(ws, ownerAcc);             // sub har konto, ingen me → byt
     } else {
       const acc = createProviderAccount({ googleSub: sub });   // sista utväg
       googleIdx.set(sub, acc.id);
-      markDirty();
+      markDirty(acc.id);
       if (ws) sendSwitchRaw(ws, acc);
     }
     htmlEnd(true, '✅ Klart — gå tillbaka till spelet');
@@ -1449,7 +1576,7 @@ function reclaimEmptyGuest(guestId, keepId) {
   accounts.delete(guestId);
   online.delete(guestId);
   revokeSessionsFor(guestId);
-  markDirty();
+  markDeleted(guestId);
   console.log('[ACCT] tomt gäst-konto', guestId, 'städat (switch →', keepId + ')');
 }
 
@@ -1504,14 +1631,14 @@ async function coreAppleLogin(me, msg) {
     if (me.appleSub && me.appleSub !== sub) appleIdx.delete(me.appleSub);
     me.appleSub = sub;                                         // bind sub på BEFINTLIGT konto (gäst el. riktigt)
     appleIdx.set(sub, me.id);
-    markDirty();
+    markDirty(me.id);
     return { kind: 'bind', what: 'apple_bind', bound: boundOf(me) };
   } else if (ownerAcc) {
     return { kind: 'switch', acc: ownerAcc };   // sub har konto, ingen me → byt
   }
   const acc = createProviderAccount({ appleSub: sub });        // okänd sub + ingen me → skapa (sista utväg)
   appleIdx.set(sub, acc.id);
-  markDirty();
+  markDirty(acc.id);
   return { kind: 'switch', acc };
 }
 async function handleAppleLogin(ws, msg) { applyChannelResult(ws, await coreAppleLogin(getMe(ws), msg)); }
@@ -1582,14 +1709,14 @@ async function coreGcLogin(me, msg) {
     if (me.gcPlayerId && me.gcPlayerId !== playerId) gcIdx.delete(me.gcPlayerId);
     me.gcPlayerId = playerId; // TYST bind på BEFINTLIGT konto (gäst el. riktigt)
     gcIdx.set(playerId, me.id);
-    markDirty();
+    markDirty(me.id);
     return { kind: 'bind', what: 'gc_bind', bound: boundOf(me) };
   } else if (ownerAcc) {
     return { kind: 'switch', acc: ownerAcc };
   }
   const acc = createProviderAccount({ gcPlayerId: playerId });
   gcIdx.set(playerId, acc.id);
-  markDirty();
+  markDirty(acc.id);
   return { kind: 'switch', acc };
 }
 async function handleGcLogin(ws, msg) { applyChannelResult(ws, await coreGcLogin(getMe(ws), msg)); }
@@ -1621,7 +1748,8 @@ function handleReferral(ws, msg) {
   me.referredBy = ref.id;   // markera FÖRE kreditering → ingen upprepad credit-exploit
   if (!ref.vault) ref.vault = {};
   ref.vault.gems = (Math.max(0, Math.round(+ref.vault.gems) || 0)) + 150;   // referrer-bonus
-  markDirty();
+  markDirty(me.id);
+  markDirty(ref.id);
   sendOk(ws, 'referral');
   const rws = online.get(code);
   if (rws) H.send(rws, { type: 'acct_referral_credit', amount: 150 });
@@ -1756,7 +1884,7 @@ function adminSetBanned(id, banned) {
   const acc = accounts.get(String(id));
   if (!acc) return null;
   acc.banned = !!banned;
-  markDirty();
+  markDirty(acc.id);
   console.log('[ADMIN] ban', id, '→', acc.banned);
   if (acc.banned) {
     revokeSessionsFor(acc.id);          // ogiltigförklara alla utdelade tokens → ingen replay-window
@@ -1781,7 +1909,7 @@ function adminSetEconomy(id, fields) {
   }
   acc.level = computeLevel(acc.stats);
   acc._economyForce = true;   // klienten adopterar serverns värden ovillkorligt vid nästa login
-  markDirty();
+  markDirty(acc.id);
   adminPushAdoption(acc);  // online? → live re-send av acct_logged_in så ändringen syns in-game direkt
   console.log('[ADMIN] economy', id, '| coins', before.coins, '→', acc.stats.coins,
     '| gems', before.gems, '→', (acc.vault && acc.vault.gems) || 0, '| alevel', before.alevel, '→', acc.stats.alevel);
@@ -1797,8 +1925,7 @@ function adminSetName(id, name) {
   const before = acc.name;
   acc.name = clean;
   acc._nameForce = true;   // klienten adopterar namnet vid nästa login (annars skriver den tillbaka sitt lokala)
-  recordNameAttempt(acc, clean, true, true);   // logga admin-rename i namn-historiken
-  markDirty();
+  recordNameAttempt(acc, clean, true, true);   // logga admin-rename i namn-historiken (markDirty(acc.id) inuti)
   adminPushAdoption(acc);  // online? → live re-send av acct_logged_in så namnet syns in-game direkt
   console.log('[ADMIN] rename', id, '|', before, '→', clean);
   return adminPlayerRow(acc);
@@ -1818,15 +1945,17 @@ function adminDeleteAccount(id) {
   if (acc.appleSub) appleIdx.delete(acc.appleSub);
   if (acc.gcPlayerId) gcIdx.delete(acc.gcPlayerId);
   // rensa kvarvarande referenser ur andras vän-/förfrågnings-listor (annars spök-vänskap
-  // om ett nytt konto senare får samma id)
+  // om ett nytt konto senare får samma id); markera berörda konton dirty
   for (const other of accounts.values()) {
     if (other.id === acc.id) continue;
+    const fl = other.friends.length, rl = other.reqIn.length, ol = other.reqOut.length;
     arrRemove(other.friends, acc.id);
     arrRemove(other.reqIn, acc.id);
     arrRemove(other.reqOut, acc.id);
+    if (other.friends.length !== fl || other.reqIn.length !== rl || other.reqOut.length !== ol) markDirty(other.id);
   }
   accounts.delete(acc.id);
-  markDirty();
+  markDeleted(acc.id);
   console.log('[ADMIN] delete', id, '(', acc.name, ')');
   return true;
 }
@@ -1851,6 +1980,17 @@ function adminCleanupGhosts(opts) {
   console.log('[ADMIN] cleanup-ghosts', apply ? 'APPLY' : 'dry-run', '— hittade', victims.length, 'raderade', deleted);
   return { scanned: accounts.size, ghosts: victims.length, deleted, sample: victims.slice(0, 20) };
 }
+
+// DEL 3: Daglig schemalagd spök-städning (24h, unref). minAgeSec=86400 = konton inaktiva
+// minst 24h. Kriterierna (isEmptyGuest): INGA bindningar, default-namn "Spelare", noll
+// progress/coins/gems/vänner/vault — extremt strikt, ingen riktig spelardata raderas.
+setInterval(() => {
+  const result = adminCleanupGhosts({ minAgeSec: 86400, apply: true });
+  if (result.deleted > 0 || result.ghosts > 0) {
+    console.log('[ACCT] auto-städning (daglig):', result.deleted, 'spök-konton raderade,',
+      result.ghosts, 'hittade av', result.scanned, 'totalt');
+  }
+}, 24 * 60 * 60 * 1000).unref();
 
 function _adminReadBody(req) {
   return new Promise((resolve) => {
@@ -2322,4 +2462,11 @@ function postJSON(url,body,cb){fetch(url,{method:"POST",headers:hdr(),body:JSON.
  return r.json().then(function(j){cb(r.ok,j)}).catch(function(){cb(r.ok,{})})}).catch(function(){cb(false,{})})}
 </script></body></html>`;
 
-module.exports = { handle, onDisconnect, presenceChanged, handleGoogleRedirect, handleGoogleCallback, handleSessionHttp, wsForAccount, handleAdminHttp, creditMatchEndXp };
+module.exports = { handle, onDisconnect, presenceChanged, handleGoogleRedirect, handleGoogleCallback, handleSessionHttp, wsForAccount, handleAdminHttp, creditMatchEndXp,
+  // Test/debug-hook (används i verifierings-skript, EJ i produktionskod)
+  _flush: function(cb) {
+    if (_pendingWrites === 0 && !_dirty && _dirtySet.size === 0 && _deletedSet.size === 0) { cb(); return; }
+    const t = setInterval(() => { if (_pendingWrites === 0 && !_dirty && _dirtySet.size === 0 && _deletedSet.size === 0) { clearInterval(t); cb(); } }, 10);
+  },
+  _testInternals: process.env.NODE_ENV !== 'production' ? { accounts, _dirtySet, _deletedSet, saveNow, saveNowSync, ACCOUNTS_SUBDIR, DATA_FILE, _adminIp, _loadAccountFromRaw } : null,
+};

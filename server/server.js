@@ -229,7 +229,9 @@ wss.on('connection', (ws, req) => {
   // Aktivera TCP keepalive pÃ¥ underliggande socket (fix fÃ¶r Render edge-proxy
   // idle-timeout som dÃ¶dar WS efter ~60s trots app-traffic).
   if (req && req.socket) applyTcpKeepalive(req.socket);
-  console.log('[CONN]', ws.id, 'connected from', req && req.headers ? (req.headers['x-forwarded-for'] || req.socket.remoteAddress) : '?');
+  // DEL 4: Spara klientens IP på ws-objektet så accounts.js kan rate-limita konto-skapande.
+  ws._remoteIp = req && req.headers ? String(req.headers['x-forwarded-for'] || (req.socket && req.socket.remoteAddress) || '').split(',')[0].trim() : '';
+  console.log('[CONN]', ws.id, 'connected from', ws._remoteIp || '?');
 
   // Heartbeat: vilken meddelande/pong som helst rÃ¤knas som "alive".
   ws.on('pong', () => { ws.isAlive = true; ws._missedPings = 0; ws._lastSeenAt = Date.now(); ws._isBackgrounded = false; });

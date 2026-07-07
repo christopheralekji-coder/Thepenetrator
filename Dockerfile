@@ -13,6 +13,9 @@ COPY shared ./shared
 
 ENV NODE_ENV=production
 ENV ACCOUNTS_DATA_DIR=/data
+# DEL 2: Sätt explicit heap-tak för 512MB fly.io shared-cpu-1x VM.
+# V8:s default-heuristik (~256MB) ger litet svängrum; 320MB lämnar ~192MB åt OS+stack.
+ENV NODE_OPTIONS="--max-old-space-size=320"
 
 EXPOSE 8080
 WORKDIR /app/server
