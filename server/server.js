@@ -293,7 +293,52 @@ setInterval(() => {
     ws.isAlive = false;
     try { ws.ping(); } catch (e) {}
   }
+  // A3 defense-in-depth (spök-lobbies): reaper — plocka bort döda sockets vars
+  // close-event aldrig nådde rummet + medlemmar vars roomCode pekar på ett annat
+  // rum (membership-desync), och riv tomma rum utan levande rejoin-stash.
+  for (const [rcode, room] of Array.from(rooms)) {
+    for (const [pid, m] of Array.from(room.members)) {
+      if (m._isBot) continue;
+      if (m.roomCode !== rcode) {
+        room.members.delete(pid);
+      } else if (m.readyState === 3) {
+        handleDisconnect(m);
+        m.roomCode = null;
+      }
+    }
+    let _rc = 0;
+    for (const [, m] of room.members) { if (!m._isBot) _rc++; }
+    if (_rc === 0 && !roomHasLiveReconnectStash(room)) {
+      if (room.sim) stopSim(room.sim);
+      rooms.delete(rcode);
+      broadcastPublicRooms();
+      console.log('[REAPER] rev tomt rum', rcode);
+    }
+  }
 }, HEARTBEAT_INTERVAL_MS);
+
+// A2b/A3b-fix: simmar self-stoppar ALDRIG vid naturligt matchslut (bara *Ended-
+// flaggor sätts) och V2-klienten skickar aldrig sim_stop → room.sim != null
+// blockerade lagbyte i post-game-lobbyn och meta.started satt fast på true
+// ("pågår"-badge på inaktiva rum för evigt). Sweep: 15s efter ended-flaggan
+// (slutpanelen är event-buren — world behövs inte längre) rivs simmen.
+const SIM_ENDED_FLAGS = ['tdmEnded', 'ctfEnded', 'siegeEnded', 'kothEnded',
+  'juggernautEnded', 'castledefenseEnded', 'heistEnded', 'battleroyaleEnded', 'gungameEnded'];
+setInterval(() => {
+  const nowMs = Date.now();
+  for (const [, room] of rooms) {
+    if (!room.sim) continue;
+    if (SIM_ENDED_FLAGS.some((f) => room.sim[f])) {
+      if (!room.sim._endedFlagAt) { room.sim._endedFlagAt = nowMs; continue; }
+      if (nowMs - room.sim._endedFlagAt >= 15000) {
+        stopSim(room.sim);
+        room.sim = null;
+        room.meta.started = false;
+        broadcastPublicRooms();
+      }
+    }
+  }
+}, 5000);
 
 // RTT-mÃ¤tning per WS fÃ¶r lag compensation. Server pingar varje aktiv WS-klient
 // 1Hz; klient ekar omedelbart tillbaka via srv_rtt_pong. Server berÃ¤knar RTT
@@ -425,6 +470,15 @@ function handleMessage(ws, msg) {
     // medan hen redan spelar). No-op om ej i kö/grupp.
     matchmaker.leave(ws);
     groups.leave(ws);
+    // A1/A3-fix (split-brain): en socket som redan är rumsmedlem får ALDRIG hosta
+    // ovanpå — då blev ws medlem i TVÅ rum (stale host i gamla = spök-rum som aldrig
+    // reapas, relays till fel rum). Städa ut ur gamla rummet först: handleDisconnect
+    // är säker för levande sockets (S5-konventionen: ingen stash vid readyState 1,
+    // host-migration/tom-rum-reap/peer_left körs som vid leave).
+    if (ws.roomCode && rooms.has(ws.roomCode)) {
+      handleDisconnect(ws);
+      ws.roomCode = null;
+    }
     // Skapa rum
     const code = generateCode();
     const hostName = String(msg.name || '').trim().slice(0, 14) || 'Spelare';
@@ -478,6 +532,14 @@ function handleMessage(ws, msg) {
       room.meta.maxPlayers = Math.max(Math.max(2, room.members.size),
         Math.min(25, parseInt(msg.maxPlayers, 10) || 8));
     }
+    // A2-fix: lägesbytet nådde tidigare medlemmarna ENBART via hostens roster-relay
+    // (som kan gå till fel rum vid split-brain / tappas) → deras lobby-UI visade
+    // gamla läget tills rejoin. Skicka direkt till alla Godot-medlemmar (samma
+    // _jsonWorld-gate som peer_left-speglingen → V1-webben ser aldrig okänt msg).
+    for (const [mpid, mm] of room.members) {
+      if (mpid === ws.id || !mm._jsonWorld) continue;
+      send(mm, { type: 'room_meta_changed', mode: room.meta.mode, maxPlayers: room.meta.maxPlayers });
+    }
     broadcastPublicRooms();
     return;
   }
@@ -518,6 +580,25 @@ function handleMessage(ws, msg) {
     // direkt (samma stale-ticket-läcka som i 'host'). No-op om ej i kö/grupp.
     matchmaker.leave(ws);
     groups.leave(ws);
+    // A1-fix: IDEMPOTENT re-join av rummet man redan är medlem i (back-to-lobby-
+    // flödet i deployade klienter): skicka bara om 'joined' med BEFINTLIG slot.
+    // Utan denna avvisades återvändaren av full-rum-checken ("Rummet är fullt")
+    // eller dubbel-allokerades slot + peer_joined-dubbletter.
+    if (!ws.isSpectator && code === ws.roomCode && room.members.has(ws.id)) {
+      const _ml = [];
+      for (const [mpid, mm] of room.members) {
+        if (mpid === ws.id) continue;
+        _ml.push({ id: mpid, name: mm.playerName || '', slot: mm.stableSlot != null ? mm.stableSlot : -1 });
+      }
+      send(ws, { type: 'joined', peerId: ws.id, hostId: room.hostId, stableSlot: ws.stableSlot, code, members: _ml });
+      return;
+    }
+    // A1/A3-fix (split-brain, spegel av 'host'-guarden): joina ett ANNAT rum medan
+    // man är medlem i ett gammalt → lämna det gamla rent först.
+    if (ws.roomCode && ws.roomCode !== code && rooms.has(ws.roomCode)) {
+      handleDisconnect(ws);
+      ws.roomCode = null;
+    }
     // v1.771: ghost-dedupe FÃ–RE size-check + slot-alloc. En halv-trasig anslutning vars
     // close ej firat (mobil byter wifiâ†”mobilnÃ¤t) ligger kvar som spÃ¶k-spelare i ~75s.
     // Kasta ut ev. kvarlevande ws med samma reconnect-token â†’ reconnecten Ã¥teranvÃ¤nder
@@ -732,7 +813,10 @@ function handleMessage(ws, msg) {
         teams,
         arena: { worldW: arena.worldW, worldH: arena.worldH, name: arena.name },
         spawns: { red: { x: Math.floor(arena.worldW * 0.10), y: spawnY }, blue: { x: Math.floor(arena.worldW * 0.90), y: spawnY } },
-        pvpPickups: (room.sim.pvpPickups || []).map(p => ({ id: p.id, x: p.x, y: p.y, type: p.type })),
+        // C-fix (rejoin): weaponId (bara TDM bär det) + available skickas nu — förr
+        // strippades de → vapen-pickups tappade sprite (bara skuggan) och upplockade
+        // pickups återuppstod som spök-loot efter app-bakgrundning/rejoin.
+        pvpPickups: (room.sim.pvpPickups || []).map(p => ({ id: p.id, x: p.x, y: p.y, type: p.type, weaponId: p.weaponId, available: p.available })),
         shieldMax: 100,
       }] });
       if (!ws.isSpectator) for (const [pid, m] of room.members) {
@@ -773,7 +857,10 @@ function handleMessage(ws, msg) {
         walls: CTF_ARENA.walls,
         pickupRadius: CTF_ARENA.pickupRadius,
         captureRadius: CTF_ARENA.captureRadius,
-        pvpPickups: (room.sim.pvpPickups || []).map(p => ({ id: p.id, x: p.x, y: p.y, type: p.type })),
+        // C-fix (rejoin): weaponId (bara TDM bär det) + available skickas nu — förr
+        // strippades de → vapen-pickups tappade sprite (bara skuggan) och upplockade
+        // pickups återuppstod som spök-loot efter app-bakgrundning/rejoin.
+        pvpPickups: (room.sim.pvpPickups || []).map(p => ({ id: p.id, x: p.x, y: p.y, type: p.type, weaponId: p.weaponId, available: p.available })),
         shieldMax: 100,
       }] });
       if (!ws.isSpectator) for (const [pid, m] of room.members) {
@@ -817,7 +904,10 @@ function handleMessage(ws, msg) {
         captureTimeSec: SIEGE_ARENA.captureTimeSec,
         neutralizeTimeSec: SIEGE_ARENA.neutralizeTimeSec,
         decorations: SIEGE_ARENA.decorations || [],
-        pvpPickups: (room.sim.pvpPickups || []).map(p => ({ id: p.id, x: p.x, y: p.y, type: p.type })),
+        // C-fix (rejoin): weaponId (bara TDM bär det) + available skickas nu — förr
+        // strippades de → vapen-pickups tappade sprite (bara skuggan) och upplockade
+        // pickups återuppstod som spök-loot efter app-bakgrundning/rejoin.
+        pvpPickups: (room.sim.pvpPickups || []).map(p => ({ id: p.id, x: p.x, y: p.y, type: p.type, weaponId: p.weaponId, available: p.available })),
         shieldMax: 100,
       }] });
       if (!ws.isSpectator) for (const [pid, m] of room.members) {
@@ -897,7 +987,10 @@ function handleMessage(ws, msg) {
         activeZoneIdx: room.sim.kothActiveZoneIdx || 0,
         zoneRotateSec: KOTH_ARENA.zoneRotateSec,
         targetPoints: room.sim.kothTargetPoints,
-        pvpPickups: (room.sim.pvpPickups || []).map(p => ({ id: p.id, x: p.x, y: p.y, type: p.type })),
+        // C-fix (rejoin): weaponId (bara TDM bär det) + available skickas nu — förr
+        // strippades de → vapen-pickups tappade sprite (bara skuggan) och upplockade
+        // pickups återuppstod som spök-loot efter app-bakgrundning/rejoin.
+        pvpPickups: (room.sim.pvpPickups || []).map(p => ({ id: p.id, x: p.x, y: p.y, type: p.type, weaponId: p.weaponId, available: p.available })),
         shieldMax: 100,
       }];
       // Aktuella scores sÃ¥ late-joiner ser leaderboard direkt
@@ -958,7 +1051,10 @@ function handleMessage(ws, msg) {
         walls: JUGGERNAUT_ARENA.walls,
         spawns: JUGGERNAUT_ARENA.spawns,
         decorations: JUGGERNAUT_ARENA.decorations || [],
-        pvpPickups: (room.sim.pvpPickups || []).map(p => ({ id: p.id, x: p.x, y: p.y, type: p.type })),
+        // C-fix (rejoin): weaponId (bara TDM bär det) + available skickas nu — förr
+        // strippades de → vapen-pickups tappade sprite (bara skuggan) och upplockade
+        // pickups återuppstod som spök-loot efter app-bakgrundning/rejoin.
+        pvpPickups: (room.sim.pvpPickups || []).map(p => ({ id: p.id, x: p.x, y: p.y, type: p.type, weaponId: p.weaponId, available: p.available })),
         shieldMax: 100,
         initialJug: room.sim.juggernautPid,
         jugWeapons: JUGGERNAUT_ARENA.jugWeapons,
@@ -1351,6 +1447,11 @@ function handleMessage(ws, msg) {
 
   if (msg.type === 'leave') {
     handleDisconnect(ws);
+    // A3c-fix: nolla roomCode (spegel av kick-vägen) — annars kör socketens
+    // senare close handleDisconnect IGEN: dubbel slot-free (två joiners kan dela
+    // slot), dubbel peer_left, och en oönskad reconnect-stash för en AVSIKTLIG
+    // lämnare (readyState hann bli !==1) som höll tomma rum vid liv i 60s extra.
+    ws.roomCode = null;
     return;
   }
 

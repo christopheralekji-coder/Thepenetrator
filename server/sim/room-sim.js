@@ -371,6 +371,8 @@ function tickSim(sim) {
         // Death-detection: markera död (ingen respawn-timer — CS-runda). Bullets.js
         // sätter _tdmDeadRound för player-kills; detta fyller luckor (explosion/PvE).
         for (const [pid, ws] of sim.room.members) {
+          if (ws.playerState && !isFinite(ws.playerState.hp)) ws.playerState.hp = 0;
+          if (ws.playerState && !isFinite(ws.playerState.shield)) ws.playerState.shield = 0;
           if (ws.playerState && ws.playerState.hp <= 0 && !ws._tdmDeadRound) {
             ws._tdmDeadRound = true;
             sim.tdmDeathsByPid[pid] = (sim.tdmDeathsByPid[pid] || 0) + 1;
@@ -1152,6 +1154,10 @@ function tickCtf(sim, dt, now) {
   // damage-källor som dödar en CTF-spelare måste få respawn + flag-drop. Bullets.js
   // sätter dem redan för direkt player-bullets, så vi fyller luckorna.
   for (const [pid, ws] of sim.room.members) {
+    // NaN-hal: NaN <= 0 ar false -> en enda NaN-skadeterm gav permanent 'dod utan
+    // respawn-timer' (klienten ser hp 0 via codec, servern respawnar aldrig). Sanera.
+    if (ws.playerState && !isFinite(ws.playerState.hp)) ws.playerState.hp = 0;
+    if (ws.playerState && !isFinite(ws.playerState.shield)) ws.playerState.shield = 0;
     if (ws.playerState && ws.playerState.hp <= 0 && !ws.tdmRespawnAt) {
       ws.tdmRespawnAt = Date.now() + 3000;
       sim.tdmDeathsByPid[pid] = (sim.tdmDeathsByPid[pid] || 0) + 1;
@@ -1827,6 +1833,10 @@ function tickSiege(sim, dt, now) {
 
   // Centraliserad death-detection
   for (const [pid, ws] of sim.room.members) {
+    // NaN-hal: NaN <= 0 ar false -> en enda NaN-skadeterm gav permanent 'dod utan
+    // respawn-timer' (klienten ser hp 0 via codec, servern respawnar aldrig). Sanera.
+    if (ws.playerState && !isFinite(ws.playerState.hp)) ws.playerState.hp = 0;
+    if (ws.playerState && !isFinite(ws.playerState.shield)) ws.playerState.shield = 0;
     if (ws.playerState && ws.playerState.hp <= 0 && !ws.tdmRespawnAt) {
       ws.tdmRespawnAt = nowMs + 3000;
       sim.tdmDeathsByPid[pid] = (sim.tdmDeathsByPid[pid] || 0) + 1;
@@ -1931,6 +1941,10 @@ function tickGungame(sim, dt, now) {
   // Death-detection + promote/demote-logik. Kill-attribution måste komma från
   // bullets.js som sätter sim._gungameLastKill { victim, killer, weaponId } per dödsfall.
   for (const [pid, ws] of sim.room.members) {
+    // NaN-hal: NaN <= 0 ar false -> en enda NaN-skadeterm gav permanent 'dod utan
+    // respawn-timer' (klienten ser hp 0 via codec, servern respawnar aldrig). Sanera.
+    if (ws.playerState && !isFinite(ws.playerState.hp)) ws.playerState.hp = 0;
+    if (ws.playerState && !isFinite(ws.playerState.shield)) ws.playerState.shield = 0;
     if (ws.playerState && ws.playerState.hp <= 0 && !ws.tdmRespawnAt) {
       ws.tdmRespawnAt = nowMs + 3000;
       sim.tdmDeathsByPid = sim.tdmDeathsByPid || {};
@@ -2054,6 +2068,10 @@ function tickKoth(sim, dt, now) {
 
   // Death-detection
   for (const [pid, ws] of sim.room.members) {
+    // NaN-hal: NaN <= 0 ar false -> en enda NaN-skadeterm gav permanent 'dod utan
+    // respawn-timer' (klienten ser hp 0 via codec, servern respawnar aldrig). Sanera.
+    if (ws.playerState && !isFinite(ws.playerState.hp)) ws.playerState.hp = 0;
+    if (ws.playerState && !isFinite(ws.playerState.shield)) ws.playerState.shield = 0;
     if (ws.playerState && ws.playerState.hp <= 0 && !ws.tdmRespawnAt) {
       ws.tdmRespawnAt = nowMs + 3000;
       sim.tdmDeathsByPid[pid] = (sim.tdmDeathsByPid[pid] || 0) + 1;
@@ -3165,7 +3183,8 @@ function updateCastleDefenseDownState(sim, dt, nowMs) {
         ps.hp = Math.round((ps.maxHp || 100) * hpf);
         if (fL.laststand >= 2) ps.shield = ps.maxShield || 100;
         ps.invulnUntil = nowMs + (fL.laststand >= 2 ? 2500 : 1750);
-        sim.eventQueue.push({ type: 'cd_hp_changed', peerId: pid, hp: ps.hp, shield: ps.shield });
+        ps._cdHpAuthUntil = nowMs + 1500;   // D3-fix: eko-skydd aven for sjalvrevive
+        sim.eventQueue.push({ type: 'cd_hp_changed', peerId: pid, hp: ps.hp, shield: ps.shield, reason: 'laststand' });
         continue;
       }
       // [CD-LASTBET] gambler last bet: chance to cheat death (30s cooldown)
@@ -3175,6 +3194,7 @@ function updateCastleDefenseDownState(sim, dt, nowMs) {
         ps.hp = Math.round((ps.maxHp || 100) * 0.45);
         ps.shield = ps.maxShield || 100;
         ps.invulnUntil = nowMs + 1500;
+        ps._cdHpAuthUntil = nowMs + 1500;   // D3-fix: eko-skydd aven for lastbet
         sim.eventQueue.push({ type: 'cd_gambler_reward', peerId: pid, kind: 'cheatdeath' });
         sim.eventQueue.push({ type: 'cd_hp_changed', peerId: pid, hp: ps.hp, shield: ps.shield });
         continue;
@@ -3287,6 +3307,11 @@ function updateCastleDefenseDownState(sim, dt, nowMs) {
           if (full) ps.shield = ps.maxShield || 100;
           ps.invulnUntil = nowMs + (full ? 5000 : 3000);
         }
+        // D3-fix: skydda revive-hp mot klientens hp-eko + tala om nya hp:t DIREKT
+        // (forr fanns inget cd_hp_changed vid revive -> klienten lag kvar pa stale
+        // varde och ekade in det -> revive kandes trasig).
+        ps._cdHpAuthUntil = nowMs + 1500;
+        sim.eventQueue.push({ type: 'cd_hp_changed', peerId: pid, hp: ps.hp, shield: ps.shield || 0 });
         sim.castledefenseRevivedCount += 1;
         sim.castledefenseDownedPids = (sim.castledefenseDownedPids || []).filter(p => p !== pid);
         sim.eventQueue.push({
@@ -3328,6 +3353,8 @@ function updateCastleDefenseDownState(sim, dt, nowMs) {
       applyCdTreeStats(sim, ps, pid);
       ps.hp = ps.maxHp;
       ps.invulnUntil = nowMs + 3000;
+      ps._cdHpAuthUntil = nowMs + 1500;   // D3-fix: samma eko-skydd som vid revive
+      sim.eventQueue.push({ type: 'cd_hp_changed', peerId: pid, hp: ps.hp, shield: ps.shield || 0 });
       sim.eventQueue.push({
         type: 'cd_player_respawned',
         peerId: pid,
@@ -3336,6 +3363,23 @@ function updateCastleDefenseDownState(sim, dt, nowMs) {
     }
   }
 }
+
+// D2-fix (stackade spawns): vag/boss/miniboss fick EXAKT en av 9 fasta koordinater
+// -> perfekt overlapp som separationen aldrig bryter (d2==0-dodzonen i enemies.js).
+// Round-robin over spawnpunkterna + +-120px jitter (varld-clampad). Pathing obruten:
+// CD-flow-faltet tacker hela griden, startpositionen ar godtycklig.
+function cdJitteredSpawn(sim, arena) {
+  sim._cdSpawnRR = ((sim._cdSpawnRR || 0) + 1) % arena.enemySpawns.length;
+  const sp = arena.enemySpawns[sim._cdSpawnRR];
+  const jr = 120;
+  return {
+    x: Math.max(20, Math.min(arena.worldW - 20, sp.x + (Math.random() * 2 - 1) * jr)),
+    y: Math.max(20, Math.min(arena.worldH - 20, sp.y + (Math.random() * 2 - 1) * jr)),
+  };
+}
+// D2-fix: biom-fiendernas ranged-behaviors ska ha tower-priority-targeting precis
+// som klassiska shooter/soldier/sniper (annars fastnar de mot core-flow-waypointen).
+const CD_RANGED_BEHAVIORS = new Set(['spread', 'homing', 'lob_aoe', 'sniper', 'root_hook']);
 
 // v1.528/v1.533: SURVIVORS-RUN mini-boss-spawn — kallas vid 4/8/12/16 min elapsed.
 // Shufflad lista garanterar OLIKA bossar per match (var random med replacement).
@@ -3679,7 +3723,7 @@ function tickCastleDefense(sim, dt, now) {
     sim._cdActiveTheme = theme;
     if (isBoss) {
       const bossKey = cdPickBossKey(w, !sim.survivorsActive);
-      const sp = arena.enemySpawns[Math.floor(Math.random() * arena.enemySpawns.length)];
+      const sp = cdJitteredSpawn(sim, arena);
       // v1.697: boss-HP sublinjärt (matchar story-bossar) i st f linjärt 8× @8p
       const coopMul = cdGetCoopMul(Math.max(1, _realMemberCount(sim)));
       const boss = makeBoss(bossKey, sp.x, sp.y, coopMul);
@@ -3720,7 +3764,7 @@ function tickCastleDefense(sim, dt, now) {
       // Klienten renderar via isMiniBoss->mb-flaggan + '<biome>_miniboss'-TEX.
       if (!sim.survivorsActive && w % 3 === 0) {
         const mBand = cdBiomeBand(w);
-        const msp = arena.enemySpawns[Math.floor(Math.random() * arena.enemySpawns.length)];
+        const msp = cdJitteredSpawn(sim, arena);
         const mbE = makeEnemy(mBand.mini, msp.x, msp.y);
         if (mbE) {
           mbE._idx = sim.nextEnemyIdx++;
@@ -3759,7 +3803,7 @@ function tickCastleDefense(sim, dt, now) {
     // v1.607: SURVIVORS höjt cap (120) så waves kan stacka. Stresstest 1500.
     const _spawnCap = sim.stresstestActive ? 1500 : (sim.survivorsActive ? 120 : ENEMY_CAP);
     if (sim._cdWaveSpawnTimer <= 0 && sim.enemies.length < _spawnCap) {
-      const sp = arena.enemySpawns[Math.floor(Math.random() * arena.enemySpawns.length)];
+      const sp = cdJitteredSpawn(sim, arena);
       // v1.416: theme override pool
       const themePool = cdGetThemePool(sim._cdActiveTheme, sim.castledefenseWave, !sim.survivorsActive);
       const type = themePool ? themePool[Math.floor(Math.random() * themePool.length)] : cdPickEnemyType(sim.castledefenseWave, !sim.survivorsActive);
@@ -3948,7 +3992,8 @@ function tickCastleDefense(sim, dt, now) {
     let target;
     // v1.411: Ranged enemies (shooter/soldier/sniper) ALLTID siege-role — skjuter
     // mot torn istället för att jaga players. Annars stannar de aldrig vid turrets.
-    const isRangedType = (e.type === 'shooter' || e.type === 'soldier' || e.type === 'sniper');
+    const isRangedType = (e.type === 'shooter' || e.type === 'soldier' || e.type === 'sniper')
+      || CD_RANGED_BEHAVIORS.has(e.behavior);
     // v1.605: SURVIVORS-RUN — enemies målar NÄRMASTE player (Vampire Survivors-stil).
     // Tidigare målade alla core (centern) vilket gjorde att spelaren kunde stå
     // i utkanten och bara skjuta — ingen press. Nu chasear de DIG.
@@ -8868,6 +8913,15 @@ function startSim(sim, opts) {
       buildables: arena.buildables,
       buildGridSize: arena.buildGridSize,
       maxBuildLevel: arena.maxBuildLevel,
+      // D1-fix (pris-spegel): klienten kan nu rakna EXAKT serverns upgrade-kostnad
+      // (_cdUpgradeCost-formeln) + effekt (upgradeStatMul) + NPC-priser
+      // (castleUpgrades). priceMul resolvas server-side sa joiners aldrig gissar
+      // svarigheten. Additiva falt -> gamla klienter ignorerar.
+      upgradeCostBase: arena.upgradeCostBase,
+      upgradeCostExp: arena.upgradeCostExp,
+      upgradeStatMul: arena.upgradeStatMul,
+      priceMul: _vendorMul,
+      castleUpgrades: arena.castleUpgrades,
       startHp: arena.startHp,
       maxHp: arena.maxHp,
       startGold: sim.castledefenseGold,  // {pid: amount}
@@ -9335,7 +9389,15 @@ function applyPlayerInput(sim, peerId, input) {
       // LEVANDE (hp>0) = fördröjt/stale eko, applicera INTE. Drabbade CO-OP REMATCH:
       // gamla scenens hp=0-inputs anländer efter respawn-reset → EVIG DÖD-LOOP.
       const staleDeathEcho = input.hp <= 0 && ws.playerState.hp > 0;
-      if (!staleDeathEcho) ws.playerState.hp = input.hp;
+      // D3-fix: i CD:s down/revive-fonster AGER servern hp (nedslagen halls pa 1,
+      // revive ger 50, wave-respawn maxHp) — klientens 40Hz-eko (positiva stale
+      // varden passerar staleDeathEcho) klobbrade annars tillbaka -> 'reste sig
+      // med 1 hp och foll direkt igen'. Galler BARA CD-down + 1.5s efter revive/
+      // respawn (_cdHpAuthUntil) — co-op-hp-auktoriteten i ovrigt orord.
+      const cdHpLocked = sim.castledefenseActive &&
+        (ws.playerState.cdDowned || ws.playerState.cdDownDead ||
+         (ws.playerState._cdHpAuthUntil || 0) > Date.now());
+      if (!staleDeathEcho && !cdHpLocked) ws.playerState.hp = input.hp;
     }
     // _pureP2P (TDM/CTF/siege/koth/gungame/jugg/BR): servern ÄGER hp helt (all skada är
     // server-auth via bullets/granater). Klient-hp-ekot IGNORERAS — annars kunde en SEN

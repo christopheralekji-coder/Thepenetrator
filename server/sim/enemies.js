@@ -348,6 +348,7 @@ function updateMindControlled(e, dt, now, allEnemies) {
 }
 
 // ─── v2 Forest/biome data-driven behavior handlers ───────────────────────────
+const _CD_RANGED_BEHAVIORS = new Set(['spread', 'homing', 'lob_aoe', 'sniper', 'root_hook']);
 // Gemensam rörelse-hjälp: håll avstånd (ideal px), strafe med perioden freqMs.
 function _rangedMove(e, dt, now, dx, dy, d, ideal, freqMs) {
   let mvx = 0, mvy = 0;
@@ -695,6 +696,19 @@ function updateEnemyAI(e, dt, now, sim, p, allEnemies) {
   // 'shielder' uses melee movement; dmgReduce applied in damageEnemy (bullets.js).
   // 'lifesteal' uses melee movement; lifesteal heal applied in applyContactDamage.
   if (e.behavior && e.behavior !== 'melee' && e.behavior !== 'slow_melee' && e.behavior !== 'split' && e.behavior !== 'shielder' && e.behavior !== 'lifesteal' && e.behavior !== 'burn_melee' && e.behavior !== 'reflect_shield') {
+    // D2-fix (CD 'skott i rak linje'): mot en flow-WAYPOINT (p._isCoreTarget,
+    // 45px framfor fienden) far ranged-behaviors ALDRIG kora standoff/skjut —
+    // _rangedMove ser d=45 << ideal och RETIRERAR (baklanges mot spawn-kanten
+    // dar de stackas) medan skott avfyras mot waypointen = rak linje av skott
+    // fran en hopklumpad grupp. Speglar pathingToCore-undantaget som klassiska
+    // shooter/soldier/sniper redan har: avancera rakt mot slottet, skjut inte
+    // (waypointen ar inget riktigt mal). Kampanj/story opaverkat (_isCoreTarget
+    // satts bara i CD/survivors).
+    if (p && p._isCoreTarget && _CD_RANGED_BEHAVIORS.has(e.behavior)) {
+      e.x += (dx / d) * e.speed * dt;
+      e.y += (dy / d) * e.speed * dt;
+      return;
+    }
     switch (e.behavior) {
       case 'spread':    _behaviorSpread(e, dt, now, sim, p, dx, dy, d);    break;
       case 'homing':    _behaviorHoming(e, dt, now, sim, p, dx, dy, d);    break;
@@ -875,6 +889,12 @@ function applySeparation(e, allEnemies, grid) {
         const push = (min - d) * 0.5;
         ax += (dx / d) * push;
         ay += (dy / d) * push;
+      } else if (d2 === 0) {
+        // D2-fix: exakt sammanfallande fiender (samma spawn-koordinat) gav d2==0
+        // -> ingen push nagonsin (permanent stack). Slumpad enhets-knuff bryter isar.
+        const a = Math.random() * 2 * Math.PI;
+        ax += Math.cos(a) * min * 0.5;
+        ay += Math.sin(a) * min * 0.5;
       }
     });
     { const _SM = 10, _m2 = ax * ax + ay * ay; if (_m2 > _SM * _SM) { const _k = _SM / Math.sqrt(_m2); ax *= _k; ay *= _k; } }
@@ -893,6 +913,11 @@ function applySeparation(e, allEnemies, grid) {
       const push = (min - d) * 0.5;
       ax += (dx / d) * push;
       ay += (dy / d) * push;
+    } else if (d2 === 0) {
+      // D2-fix: samma sammanfall-knuff som grid-vagen
+      const a = Math.random() * 2 * Math.PI;
+      ax += Math.cos(a) * min * 0.5;
+      ay += Math.sin(a) * min * 0.5;
     }
   }
   { const _SM = 10, _m2 = ax * ax + ay * ay; if (_m2 > _SM * _SM) { const _k = _SM / Math.sqrt(_m2); ax *= _k; ay *= _k; } }
