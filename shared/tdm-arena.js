@@ -33,8 +33,10 @@ const _topWalls = [
   { x: 360,  y: 80,  w: 118, h: 86,  kind: 'tent', decor: true }, // genomgångbart (läger-tält)
   { x: 1222, y: 80,  w: 118, h: 86,  kind: 'tent', decor: true },
   { x: 740,  y: 70,  w: 220, h: 92,  kind: 'truck' },         // supply-lastbil
-  { x: 300,  y: 188, w: 50,  h: 50,  kind: 'crate' },         // ammolådor vid tält
-  { x: 1350, y: 188, w: 50,  h: 50,  kind: 'crate' },
+  // 2026-07-08 (agarbeslut): crate-mix — ENDAST kind bytt, x/y/w/h ORORDA
+  // (kollision identisk; speglas till blatt av _mirrorWall automatiskt)
+  { x: 300,  y: 188, w: 50,  h: 50,  kind: 'crate_b' },       // militarlada m. stjarna
+  { x: 1350, y: 188, w: 50,  h: 50,  kind: 'ammo_stack' },    // stapel ammo-plat-lador
   { x: 688,  y: 96,  w: 44,  h: 44,  kind: 'oil_drum' },      // fat vid lastbilen
   { x: 968,  y: 96,  w: 44,  h: 44,  kind: 'oil_drum' },
   { x: 150,  y: 62,  w: 150, h: 16,  kind: 'wooden_fence' },  // staket-accenter bak
@@ -53,8 +55,8 @@ const _topWalls = [
   { x: 750,  y: 742, w: 44,  h: 44,  kind: 'fire_drum' },
   { x: 906,  y: 742, w: 44,  h: 44,  kind: 'fire_drum' },
   { x: 956,  y: 700, w: 44,  h: 44,  kind: 'oil_drum' },
-  { x: 240,  y: 828, w: 74,  h: 74,  kind: 'crate' },          // lådstaplar
-  { x: 1386, y: 828, w: 74,  h: 74,  kind: 'crate' },
+  { x: 240,  y: 828, w: 74,  h: 74,  kind: 'barrel_cluster' }, // fat-kluster (kind-byte, kollision ororda)
+  { x: 1386, y: 828, w: 74,  h: 74,  kind: 'crate_a' },        // tralada m. metallhorn
   // --- Sido-segment längs kant — med LUCKA emellan (kika-runt) ---
   { x: 105,  y: 560, w: 38,  h: 130, kind: 'sandbag' },
   { x: 105,  y: 772, w: 34,  h: 130, kind: 'jersey_barrier' },

@@ -70,8 +70,10 @@ const CTF_ARENA = {
     { x: 2610, y: 1800, w: 40,  h: 200, kind: 'wall_pillar' },
 
     // === MID-LANE COVER (utbyggt) ===
-    { x: 1700, y: 1350, w: 70,  h: 100, kind: 'crate' },
-    { x: 2730, y: 1350, w: 70,  h: 100, kind: 'crate' },
+    // 2026-07-08 (agarbeslut): crate-mix — ENDAST kind bytt, x/y/w/h ORORDA
+    // (kollision identisk; x-spegelpar haller samma kind for lagrattvisa)
+    { x: 1700, y: 1350, w: 70,  h: 100, kind: 'crate_tall' },
+    { x: 2730, y: 1350, w: 70,  h: 100, kind: 'crate_tall' },
     // Sandbag-stack mitt i (low cover, bra för crouch-feel)
     { x: 2100, y: 1400, w: 120, h: 30, kind: 'sandbag' },
     { x: 2280, y: 1400, w: 120, h: 30, kind: 'sandbag' },
@@ -85,11 +87,11 @@ const CTF_ARENA = {
     { x: 2250, y: 1700, w: 250, h: 16, kind: 'pipe' },
 
     // === TOP LANE COVER (varierat) ===
-    { x: 900,  y: 700,  w: 80,  h: 80, kind: 'crate' },
-    { x: 1600, y: 600,  w: 80,  h: 80, kind: 'crate' },
-    { x: 2210, y: 500,  w: 80,  h: 80, kind: 'crate' },
-    { x: 2900, y: 600,  w: 80,  h: 80, kind: 'crate' },
-    { x: 3520, y: 700,  w: 80,  h: 80, kind: 'crate' },
+    { x: 900,  y: 700,  w: 80,  h: 80, kind: 'pallet_sacks' },
+    { x: 1600, y: 600,  w: 80,  h: 80, kind: 'crate_d' },
+    { x: 2210, y: 500,  w: 80,  h: 80, kind: 'barrel_cluster' },
+    { x: 2900, y: 600,  w: 80,  h: 80, kind: 'crate_d' },
+    { x: 3520, y: 700,  w: 80,  h: 80, kind: 'pallet_sacks' },
     // Sandbag-rader i toppen
     { x: 1200, y: 400,  w: 180, h: 25, kind: 'sandbag' },
     { x: 3000, y: 400,  w: 180, h: 25, kind: 'sandbag' },
@@ -104,11 +106,11 @@ const CTF_ARENA = {
     { x: 2570, y: 350,  w: 28,  h: 28, kind: 'barrel' },
 
     // === BOTTOM LANE COVER (mirrored, varierat) ===
-    { x: 900,  y: 2020, w: 80,  h: 80, kind: 'crate' },
-    { x: 1600, y: 2120, w: 80,  h: 80, kind: 'crate' },
-    { x: 2210, y: 2220, w: 80,  h: 80, kind: 'crate' },
-    { x: 2900, y: 2120, w: 80,  h: 80, kind: 'crate' },
-    { x: 3520, y: 2020, w: 80,  h: 80, kind: 'crate' },
+    { x: 900,  y: 2020, w: 80,  h: 80, kind: 'crate_a' },
+    { x: 1600, y: 2120, w: 80,  h: 80, kind: 'barrel_cluster' },
+    { x: 2210, y: 2220, w: 80,  h: 80, kind: 'pallet_sacks' },
+    { x: 2900, y: 2120, w: 80,  h: 80, kind: 'barrel_cluster' },
+    { x: 3520, y: 2020, w: 80,  h: 80, kind: 'crate_a' },
     { x: 1200, y: 2380, w: 180, h: 25, kind: 'sandbag' },
     { x: 3000, y: 2380, w: 180, h: 25, kind: 'sandbag' },
     { x: 1450, y: 1930, w: 100, h: 20, kind: 'barricade' },
@@ -130,10 +132,10 @@ const CTF_ARENA = {
     { x: 3720, y: 1860, w: 180, h: 18, kind: 'wall_divider' },
 
     // === SIDE COVER nära baser (utökat) ===
-    { x: 540,  y: 1300, w: 60,  h: 60, kind: 'crate' },
-    { x: 540,  y: 1440, w: 60,  h: 60, kind: 'crate' },
-    { x: 3900, y: 1300, w: 60,  h: 60, kind: 'crate' },
-    { x: 3900, y: 1440, w: 60,  h: 60, kind: 'crate' },
+    { x: 540,  y: 1300, w: 60,  h: 60, kind: 'crate_a' },
+    { x: 540,  y: 1440, w: 60,  h: 60, kind: 'ammo_stack' },
+    { x: 3900, y: 1300, w: 60,  h: 60, kind: 'crate_a' },
+    { x: 3900, y: 1440, w: 60,  h: 60, kind: 'ammo_stack' },
     // Extra debris precis utanför baserna (kontrollerar 'corridors')
     { x: 700,  y: 1200, w: 36,  h: 36, kind: 'debris' },
     { x: 700,  y: 1580, w: 36,  h: 36, kind: 'debris' },
