@@ -581,8 +581,17 @@ function spawnPlayerBullets(sim, p, weaponId, params) {
       const FLAME_MAX_RANGE = Math.round(110 + 230 * rampFrac);
       const FLAME_STEP = 26;
       const FLAME_START = 14;
+      // Eldkastar-nerf 2026-07-08: eldlinjen stannar vid första väggen (losBlocked =
+      // samma wall-set som kulorna) — förr fortsatte patcharna GENOM väggar och dödade
+      // bakom skydd som kulorna aldrig nått. Stegvis koll (förra punkten → nästa) så
+      // hela linjen täcks utan att om-trejsa från skytten för varje patch. Lazy require
+      // (som sg ovan) pga cirkulärt bullets↔bots-beroende vid load.
+      const { losBlocked } = require('./bots');
+      let lpx = p.x, lpy = p.y;
       for (let fd = FLAME_START; fd <= FLAME_MAX_RANGE; fd += FLAME_STEP) {
         const fpx = p.x + cax * fd, fpy = p.y + cay * fd;
+        if (losBlocked(sim, lpx, lpy, fpx, fpy)) break;
+        lpx = fpx; lpy = fpy;
         sg.spawnFlamePatch(sim, fpx, fpy, p.peerId);
         sim.eventQueue.push({ type: 'fire_patch', x: Math.round(fpx), y: Math.round(fpy) });
       }

@@ -140,6 +140,13 @@ function tickGrenadeZones(sim, dt, now) {
           if (e.dead) continue;
           const dx = e.x - z.x, dy = e.y - z.y;
           if (dx * dx + dy * dy <= z.r * z.r) {
+            // Eldkastar-nerf 2026-07-08: max EN eld-zon-tick per offer per 250ms.
+            // Strålen lägger patch-linjer var 160ms med 1800ms livstid → ~6 zoner
+            // stackade på samma punkt tickade OBEROENDE (~192 mark-DPS, mer än
+            // minigunens totala). Gaten kapar till dmgPerTick*4/s per offer oavsett
+            // zon-antal; en ensam molotov (patchar utan överlapp) påverkas inte.
+            if ((e._fireTickNext || 0) > now) continue;
+            e._fireTickNext = now + 250;
             // C137: gå via damageEnemy → kill-credit, vapen-XP (molotov) + flash bevaras
             // i st.f. direkt hp-subtraktion (förlorade lastDamagerPid/Weapon).
             damageEnemy(e, z.dmgPerTick, false, z.fromPid, 'molotov');
@@ -161,6 +168,10 @@ function tickGrenadeZones(sim, dt, now) {
           if (!inFire) continue;
           if (fromTeam && ws.tdmTeam && ws.tdmTeam === fromTeam) continue;
           if (Date.now() < (ws.playerState.invulnUntil || 0)) continue;
+          // Eldkastar-nerf 2026-07-08: samma per-offer-gate som fiende-grenen ovan —
+          // överlappande eld-zoner får inte multiplicera tick-skadan (max 1 tick/250ms).
+          if ((ws.playerState._fireTickNext || 0) > now) continue;
+          ws.playerState._fireTickNext = now + 250;
           let rem = z.dmgPerTick;
           if ((ws.playerState.shield || 0) > 0) {
             const ab = Math.min(ws.playerState.shield, rem);
