@@ -331,9 +331,24 @@ setInterval(() => {
     if (SIM_ENDED_FLAGS.some((f) => room.sim[f])) {
       if (!room.sim._endedFlagAt) { room.sim._endedFlagAt = nowMs; continue; }
       if (nowMs - room.sim._endedFlagAt >= 15000) {
+        // SPECTATE: släpp åskådarna INNAN simmen rivs (exakt samma mönster som
+        // sim_start-purgen) — utan sim finns inget att titta på, och de får aldrig
+        // ligga kvar som medlemmar i post-game-lobbyn (kan dras in som spelare).
+        {
+          const _specs = [];
+          for (const [pid, m] of room.members) { if (m.isSpectator) _specs.push(m); }
+          for (const m of _specs) {
+            room.members.delete(m.id);
+            try { send(m, { type: 'spectate_ended' }); } catch (e) {}
+            try { (m.close || m.terminate).call(m); } catch (e) {}
+          }
+        }
         stopSim(room.sim);
         room.sim = null;
         room.meta.started = false;
+        // Spegla sim_stop-handlern: match → lobby ska nå vänner-presensen direkt
+        // (annars stod spelarna kvar som "i match" tills nästa presence-event).
+        for (const [, m] of room.members) { if (!m._isBot) accounts.presenceChanged(m); }
         broadcastPublicRooms();
       }
     }
@@ -479,6 +494,10 @@ function handleMessage(ws, msg) {
       handleDisconnect(ws);
       ws.roomCode = null;
     }
+    // SPECTATE: den som hostar är alltid SPELARE. Sätts EFTER split-brain-blocket
+    // ovan (ordningen är kritisk) — handleDisconnect ska städa det gamla rummet med
+    // den GAMLA rollen (en spectator ska inte få slot-retur/peer_left som spelare).
+    ws.isSpectator = false;
     // Skapa rum
     const code = generateCode();
     const hostName = String(msg.name || '').trim().slice(0, 14) || 'Spelare';
@@ -569,22 +588,38 @@ function handleMessage(ws, msg) {
     // SPECTATE (additivt): klienten joinar för att TITTA på en vän-match i progress.
     // En spectator får world-broadcasts (är i room.members) men registreras ALDRIG
     // som spelare — ingen playerState, inga score-maps, inget team, ingen slot, inga
-    // peer_joined-notiser. Sätts ALLTID (icke-spectate-join nollar den → reset).
-    ws.isSpectator = !!msg.spectate;
-    // En åskådare kan BARA titta på en match som FAKTISKT körs (room.sim). Avvisa
-    // spectate-join mot ett rum utan aktiv sim (lobby) → det finns inget att titta
-    // på, och det garanterar att en åskådare aldrig existerar i ett ej-startat rum
-    // (stänger matchmaker-vägen där en åskådare annars kunde dras in som spelare).
-    if (ws.isSpectator && !room.sim) { send(ws, { type: 'error', error: 'Matchen har inte startat' }); return; }
+    // peer_joined-notiser. VIKTIGT: rollen committas till ws.isSpectator först EFTER
+    // all validering + split-brain-städning nedan — en avvisad join får aldrig mutera
+    // socketens roll (annars städas det gamla rummet med FEL roll vid disconnect).
+    const wantSpectate = !!msg.spectate;
+    // En åskådare kan BARA titta på en match som FAKTISKT körs (room.sim) och som
+    // inte redan är SLUT (*Ended-flagga satt — 15s-sweepen har inte hunnit riva
+    // simmen än). Avvisa spectate-join mot lobby/avslutad match → det finns inget
+    // att titta på, och det garanterar att en åskådare aldrig existerar i ett ej-
+    // startat rum (stänger matchmaker-vägen där en åskådare kunde dras in som spelare).
+    if (wantSpectate && (!room.sim || SIM_ENDED_FLAGS.some((f) => room.sim[f]))) {
+      send(ws, { type: 'error', error: room.sim ? 'Matchen är slut' : 'Matchen har inte startat' });
+      return;
+    }
     // C123: släpp ev. kvarvarande matchmaker-ticket/grupp innan vi joinar ett rum
     // direkt (samma stale-ticket-läcka som i 'host'). No-op om ej i kö/grupp.
     matchmaker.leave(ws);
     groups.leave(ws);
+    // SPECTATE: rollbyte mot SAMMA rum avvisas i BÅDA riktningarna (spelare→åskådare
+    // och åskådare→spelare) — klienten måste lämna rummet först. Annars byter en
+    // medlem roll utan slot-/score-/peer_left-städning (slot-läcka, spöke i roster,
+    // eller en åskådare som smyger in som spelare mitt i matchen).
+    if (code === ws.roomCode && room.members.has(ws.id) && !!ws.isSpectator !== wantSpectate) {
+      send(ws, { type: 'error', error: 'Lämna rummet först' });
+      return;
+    }
     // A1-fix: IDEMPOTENT re-join av rummet man redan är medlem i (back-to-lobby-
     // flödet i deployade klienter): skicka bara om 'joined' med BEFINTLIG slot.
     // Utan denna avvisades återvändaren av full-rum-checken ("Rummet är fullt")
     // eller dubbel-allokerades slot + peer_joined-dubbletter.
-    if (!ws.isSpectator && code === ws.roomCode && room.members.has(ws.id)) {
+    // ws.stableSlot >= 0: en spectator (sentinel -1) får ALDRIG kortslutas här —
+    // den skulle annars eka 'joined' med slot -1 som om den vore spelare.
+    if (!wantSpectate && code === ws.roomCode && room.members.has(ws.id) && ws.stableSlot >= 0) {
       const _ml = [];
       for (const [mpid, mm] of room.members) {
         if (mpid === ws.id) continue;
@@ -634,7 +669,9 @@ function handleMessage(ws, msg) {
             }
             if (_s.castledefenseActive) ws._cdReconnect = true;
           }
-          if (ghostWs.stableSlot != null && ghostWs.stableSlot !== 0) room._freeSlots.push(ghostWs.stableSlot);
+          // Bara riktiga spelar-slots (>0) tillbaka i poolen — host=0 och spectator-
+          // sentinel -1 får ALDRIG pushas (en -1:a korrupterar nästa slot-alloc).
+          if (ghostWs.stableSlot != null && ghostWs.stableSlot > 0) room._freeSlots.push(ghostWs.stableSlot);
           room.members.delete(ghostPid);
           ghostWs.roomCode = null;  // â†’ handleDisconnect early-returnar pÃ¥ dess close
           try { (ghostWs.terminate || ghostWs.close).call(ghostWs); } catch (e) {}
@@ -653,15 +690,18 @@ function handleMessage(ws, msg) {
         }
       }
     }
+    // SPECTATE-commit: all validering + split-brain-städning (med GAMLA rollen) är
+    // klar — först NU muteras socketens roll, så alla läsningar nedströms ser rätt.
+    ws.isSpectator = wantSpectate;
     const _joinMaxP = (room.meta && room.meta.maxPlayers) || 8;
     // Spectators räknas inte mot rum-taket (de är inte spelare).
-    if (!ws.isSpectator && room.members.size >= _joinMaxP) { send(ws, { type: 'error', error: 'Rummet är fullt (max ' + _joinMaxP + ')' }); return; }
+    if (!wantSpectate && room.members.size >= _joinMaxP) { send(ws, { type: 'error', error: 'Rummet är fullt (max ' + _joinMaxP + ')' }); return; }
     // Tilldela stabilt slot-index: Ã¥teranvÃ¤nd lÃ¤gsta lediga slot fÃ¶rst,
     // annars ta nÃ¤sta frÃ¥n rÃ¤knaren. Slot Ã¤ndras ALDRIG fÃ¶r en peer under
     // dess session; nÃ¤r peer lÃ¤mnar returneras slottet till _freeSlots.
     if (!room._freeSlots) room._freeSlots = [];
     if (!room._nextSlot) room._nextSlot = 1;
-    if (ws.isSpectator) {
+    if (wantSpectate) {
       // Spectator får ingen spelar-slot (den syns aldrig i players[]).
       ws.stableSlot = -1;
     } else {
@@ -675,17 +715,23 @@ function handleMessage(ws, msg) {
       ws.stableSlot = slot;
     }
     room.members.set(ws.id, ws);
+    // #wifi: en MÄNNISKA är tillbaka som spelare i rummet → avbryt ev. pågående
+    // humanless-grace-timer (annars river den rummet under fötterna på återvändaren).
+    if (!wantSpectate && room._humanlessTimer) {
+      clearTimeout(room._humanlessTimer);
+      room._humanlessTimer = null;
+    }
     ws.roomCode = code;
     if (msg.name) ws.playerName = String(msg.name).trim().slice(0, 14);
     // v1.659: reconnect-restore â€” om token matchar en fÃ¤rsk stash (spelare som tappade
-    // anslutningen <60s sedan i aktiv sim) Ã¥terstÃ¤ll server-side-only-state som INTE
+    // anslutningen <180s sedan i aktiv sim) Ã¥terstÃ¤ll server-side-only-state som INTE
     // self-healar via sim_input: Heist-roll + hp/shield (annars gratis-heal + roll-loss).
     // KÃ¶rs FÃ–RE late-join-blocken; PvP-blocken sÃ¤tter sedan fresh spawn (korrekt fÃ¶r PvP),
     // co-op/heist (utan PvP-block) behÃ¥ller restoren.
     if (msg.reconnectToken) {
       ws._reconnectToken = String(msg.reconnectToken).slice(0, 40);
       // (ghost-dedupe kÃ¶rs nu HÃ–GRE UPP, fÃ¶re size-check/slot-alloc â€” se v1.771-blocket)
-      // v1.697: rensa utgÃ¥ngna stash-entries (>60s) sÃ¥ de inte ackumuleras obegrÃ¤nsat
+      // v1.697: rensa utgÃ¥ngna stash-entries (>180s) sÃ¥ de inte ackumuleras obegrÃ¤nsat
       // (DoS-yta: join-flood med unika tokens utan reconnect). Cappa Ã¤ven till 16 nyaste.
       if (room._reconnectStash) {
         const _cut = Date.now() - RECONNECT_STASH_TTL_MS;
@@ -1652,6 +1698,17 @@ function handleMessage(ws, msg) {
     const room = rooms.get(ws.roomCode);
     if (!room || !room.sim) return;
     if (room.hostId !== ws.id) return;
+    // SPECTATE: släpp åskådarna INNAN simmen rivs (exakt samma mönster som
+    // sim_start-purgen) — utan sim finns inget att titta på.
+    {
+      const _specs = [];
+      for (const [pid, m] of room.members) { if (m.isSpectator) _specs.push(m); }
+      for (const m of _specs) {
+        room.members.delete(m.id);
+        try { send(m, { type: 'spectate_ended' }); } catch (e) {}
+        try { (m.close || m.terminate).call(m); } catch (e) {}
+      }
+    }
     stopSim(room.sim);
     room.sim = null;  // v1.771: hÃ¥ll invarianten "om room.sim existerar Ã¤r den aktiv"
     if (room.meta) room.meta.started = false;
@@ -2570,7 +2627,9 @@ function handleMessage(ws, msg) {
 // slangde servern HELA rummet -> reconnect-stashen (som ligger PA rummet) slangdes med ->
 // auto-rejoin ett par sekunder senare mottes av "Rummet finns inte" -> hard menu-kick. Hall
 // istallet rummet + stashen vid liv en bounded stund sa rejoin kan aterstalla somlost.
-const HUMANLESS_ROOM_GRACE_MS = 60000;
+// Gracen MATCHAR rejoin-fönstret (180s) — en kortare grace rev rummet medan
+// reconnect-stashen fortfarande var giltig (rejoin → "Rummet finns inte").
+const HUMANLESS_ROOM_GRACE_MS = RECONNECT_STASH_TTL_MS;
 function roomHasLiveReconnectStash(room) {
   if (!room || !room._reconnectStash) return false;
   const now = Date.now();
@@ -2584,7 +2643,9 @@ function scheduleHumanlessRoomCleanup(room) {
   if (!room || room._humanlessTimer) return;
   room._humanlessTimer = setTimeout(() => {
     room._humanlessTimer = null;
-    if (!rooms.has(room.code)) return;
+    // Identitetscheck (inte bara has): rumskoden kan ha återanvänts av ett NYTT rum
+    // — då får det gamla rummets timer aldrig riva det nya.
+    if (rooms.get(room.code) !== room) return;
     let real = 0;
     for (const [, m] of room.members) { if (!m._isBot) real++; }
     if (real === 0) {
@@ -2618,7 +2679,7 @@ function handleDisconnect(ws) {
   }
   // v1.659: stasha server-side-only-state fÃ¶r ev. reconnect (Heist-roll + hp/shield)
   // innan vi rensar. Bara under aktiv sim + om klienten har en reconnect-token.
-  // Stashen lever i rummet (rensas nÃ¤r rummet stÃ¤ngs) och utgÃ¥r efter 60s vid restore.
+  // Stashen lever i rummet (rensas nÃ¤r rummet stÃ¤ngs) och utgÃ¥r efter 180s vid restore.
   // S5: stash:a BARA vid riktiga tapp — 'leave'/kick har levande socket
   // (readyState 1, samma konvention som accounts.onDisconnect). Forr fick
   // avsiktliga utträden (V2 skickade dessutom aldrig leave) en stash ->
@@ -2642,7 +2703,9 @@ function handleDisconnect(ws) {
   // Returnera stable-slot till den lediga poolen sÃ¥ nÃ¤sta peer som joinar
   // kan Ã¥teranvÃ¤nda det lÃ¤gsta lediga slot-numret. Host (slot 0) returneras
   // INTE â€” slot 0 Ã¤r alltid hosten, host-migration uppdaterar bara hostId.
-  if (ws.stableSlot != null && ws.stableSlot !== 0 && room._freeSlots) {
+  // Bara riktiga spelar-slots (>0) — spectator-sentinel -1 får ALDRIG in i poolen
+  // (en -1:a skulle delas ut till nästa joiner och korruptera slot-mappningen).
+  if (ws.stableSlot != null && ws.stableSlot > 0 && room._freeSlots) {
     room._freeSlots.push(ws.stableSlot);
   }
   room.members.delete(ws.id);

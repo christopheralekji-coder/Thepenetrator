@@ -863,6 +863,18 @@ function bindSocketToAccount(ws, acc) {
   // C172: byter socketen konto (switch → re-login) revokeras det gamla kontots
   // tokens så en utdelad token inte kan replaya efter bytet.
   if (ws.accountId && ws.accountId !== acc.id) revokeSessionsFor(ws.accountId);
+  // Konto-SWITCH = LOGOUT för gamla kontot: dess online-entry raderades aldrig och
+  // dess vänner notifierades aldrig → gamla kontot syntes online FÖR EVIGT (speglande
+  // NYA kontots aktivitet, med joinbar rumskod). Speglar onDisconnects offline-gren.
+  const prev = ws.accountId;
+  if (prev && prev !== acc.id && online.get(prev) === ws) {
+    online.delete(prev);
+    const pst = _updState.get(prev);
+    if (pst && pst.timer) { clearTimeout(pst.timer); pst.timer = null; }
+    const prevAcc = accounts.get(prev);
+    if (prevAcc) { prevAcc.lastSeen = Date.now(); markDirty(prev); }
+    notifyFriendsOfNow(prev); // vänner ser offline DIREKT (som vid logout)
+  }
   ws.accountId = acc.id;
   online.set(acc.id, ws);
   acc.lastSeen = Date.now();
