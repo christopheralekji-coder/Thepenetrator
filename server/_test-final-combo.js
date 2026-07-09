@@ -73,5 +73,31 @@ try {
   console.log('✅ regression: ai:final körs utan crash');
 } catch (e) { console.log('❌ regression ai:final kraschade — ' + e.message); failures++; }
 
-console.log(failures === 0 ? '\n🎉 ALLA final_combo-bossar roterar korrekt.' : `\n💥 ${failures} boss(ar) misslyckades.`);
+// Charge-telegraf: en charge-lunge ska ALLTID föregås av en wind-up (fx-bit 512-fönstret).
+(function testChargeWindup() {
+  const sim = fakeSim();
+  const b = makeBoss('ironclad', 400, 300, 1);
+  b.ai = 'brute_charger';       // rena charges → deterministiskt att verifiera invarianten
+  const players = fakePlayers();
+  const dt = 1 / 60; let now = 10000;
+  let prevChargeActive = false, prevWindup = false;
+  let charges = 0, windupTicks = 0, chargeWithoutWindup = 0, maxWindupMs = 0;
+  for (let f = 0; f < 60 * 20; f++) {
+    const wStart = b.windupUntil;
+    updateBoss(sim, b, dt, now, players);
+    const chargeActive = b.chargeUntil > now;
+    const windupActive = b.windupUntil > now;
+    if (windupActive) { windupTicks++; maxWindupMs = Math.max(maxWindupMs, b.windupUntil - now); }
+    if (chargeActive && !prevChargeActive) {        // charge startade denna tick
+      charges++;
+      if (!prevWindup) chargeWithoutWindup++;       // utan föregående wind-up = TELEGRAF-FAIL
+    }
+    prevChargeActive = chargeActive; prevWindup = windupActive; now += 1000 * dt;
+  }
+  const ok = charges >= 2 && windupTicks > 0 && chargeWithoutWindup === 0 && Math.round(maxWindupMs) <= 450;
+  if (!ok) failures++;
+  console.log(`${ok ? '✅' : '❌'} charge-telegraf   charges=${charges} windup-ticks=${windupTicks} charge-UTAN-windup=${chargeWithoutWindup} maxWindup=${Math.round(maxWindupMs)}ms`);
+})();
+
+console.log(failures === 0 ? '\n🎉 ALLA final_combo-bossar roterar korrekt + charge-telegraf verifierad.' : `\n💥 ${failures} kontroll(er) misslyckades.`);
 process.exit(failures === 0 ? 0 : 1);

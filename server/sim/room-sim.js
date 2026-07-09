@@ -7496,7 +7496,9 @@ function broadcastWorld(sim, now) {
       // fx = status-bitfält: 1=burn, 2=slow, 4=boss-charge, 8=boss-cloak,
       //   16=HEALING (healer m. aktiv heal-target — C4), 32=SUMMONING (summoner
       //   inom ~700ms före nästa summon-cast — C4), 64=SNIPER-AIM (aim-fasen,
-      //   800ms före skott — C3), 128=BOMBER-ARMED (fuse tänd, ≤0.6s — C3). g=guld.
+      //   800ms före skott — C3), 128=BOMBER-ARMED (fuse tänd, ≤0.6s — C3),
+      //   256=ATTACK-lunge (~220ms), 512=CHARGE-WIND-UP (boss laddar lunge, ~450ms
+      //   telegraf innan tank/brute/shielder-charge). g=guld.
       // AAA: beräknas för ALLA synliga — V2-delta måste skicka full-entry när fx
       // ändras även om positionen står still (annars missas sniper-aim/charge-
       // telegraferna på stillastående fiender). V1 läser bara värdet i full-grenen.
@@ -7506,7 +7508,8 @@ function broadcastWorld(sim, now) {
         | (e.type === 'summoner' && (now - (e.summonAt || 0)) > 3800 ? 32 : 0)
         | (e.aiming ? 64 : 0)
         | (e.type === 'bomber' && (e.fuse || 0) > 0 ? 128 : 0)
-        | (((e._attackFxUntil && e._attackFxUntil > now) || (e.isBoss && e.lastAttack && (now - e.lastAttack) < 220)) ? 256 : 0));
+        | (((e._attackFxUntil && e._attackFxUntil > now) || (e.isBoss && e.lastAttack && (now - e.lastAttack) < 220)) ? 256 : 0)
+        | (e.windupUntil && e.windupUntil > now ? 512 : 0));
       const last = lastSent[e._idx];
       const isNew = !last;
       const fxChanged = !isNew && last.fx !== _fx;

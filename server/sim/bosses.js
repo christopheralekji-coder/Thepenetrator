@@ -25,6 +25,7 @@ function makeBoss(bossKey, x, y, coopMul) {
     name: cfg.name, subtitle: cfg.subtitle || '',
     phase: 1, lastAttack: 0, lastSpread: 0,
     chargeUntil: 0, chargeDir: { x: 0, y: 0 },
+    windupUntil: 0, windupDur: 0,  // charge-telegraf: wind-up-hold innan lunge (fx-bit 512)
     dashUntil: 0, dashDir: { x: 0, y: 0 },
     flashUntil: 0, walkAccum: 0,
     cloakUntil: 0, jetpackUntil: 0, shieldDir: 0, chargeCdAt: 0,
@@ -150,6 +151,16 @@ function slowRatio(b) {
   return b._origSpeed > 0 ? (b.speed / b._origSpeed) : 1;
 }
 
+// Charge-telegraf: charge-attackerna (tank/brute/shielder) lungar inte direkt utan
+// köar en kort wind-up. updateBoss håller bossen still + tänder fx-bit 512 under
+// wind-upen och commit:ar sedan laddningen → spelaren får ett läsbart väj-fönster.
+const CHARGE_WINDUP_MS = 450;
+function startCharge(b, now, dur, dx, dy) {
+  b.windupUntil = now + CHARGE_WINDUP_MS;
+  b.windupDur = dur;
+  b.chargeDir = { x: dx, y: dy };
+}
+
 // 2) TANK_CHARGER (Benkrossare)
 function aiTankCharger(sim, b, p, ndx, ndy, d, hpFrac, dt, now) {
   if (b.chargeUntil && now < b.chargeUntil) {
@@ -162,8 +173,7 @@ function aiTankCharger(sim, b, p, ndx, ndy, d, hpFrac, dt, now) {
     b.y += ndy * b.speed * dt;
     if (now - b.lastAttack > (hpFrac < 0.5 ? 2800 : 4200)) {
       b.lastAttack = now;
-      b.chargeUntil = now + 900;
-      b.chargeDir = { x: ndx, y: ndy };
+      startCharge(b, now, 900, ndx, ndy);
     }
   }
 }
@@ -207,8 +217,7 @@ function aiBruteCharger(sim, b, p, ndx, ndy, d, hpFrac, dt, now) {
   const cd = hpFrac < 0.33 ? 2000 : (hpFrac < 0.66 ? 3000 : 4000);
   if (now - b.lastAttack > cd) {
     b.lastAttack = now;
-    b.chargeUntil = now + 850;
-    b.chargeDir = { x: ndx, y: ndy };
+    startCharge(b, now, 850, ndx, ndy);
   }
   if (hpFrac < 0.5 && now - b.lastSpread > 2500) {
     b.lastSpread = now;
@@ -302,10 +311,9 @@ function aiShielder(sim, b, p, ndx, ndy, d, hpFrac, dt, now) {
     b.lastAttack = now;
     bossShoot(sim, b, p.x - b.x, p.y - b.y, 1, 0, b.bulletColor, 1.3, 2.0);
   }
-  if (hpFrac < 0.4 && now - b.lastSpread > 4000 && !b.chargeUntil) {
+  if (hpFrac < 0.4 && now - b.lastSpread > 4000 && !b.chargeUntil && !b.windupUntil) {
     b.lastSpread = now;
-    b.chargeUntil = now + 700;
-    b.chargeDir = { x: ndx, y: ndy };
+    startCharge(b, now, 700, ndx, ndy);
   }
   if (b.chargeUntil && now < b.chargeUntil) {
     const sm = slowRatio(b);
@@ -449,7 +457,21 @@ function updateBoss(sim, b, dt, now, players) {
   // Flush burst-kö (cloaker)
   if (b.burstQueue && b.burstQueue.length) flushBurstQueue(sim, b, players, now);
 
-  switch (b.ai) {
+  // Charge-telegraf wind-up: håll bossen still + telegrafera (fx-bit 512 sätts i
+  // room-sim.js) medan wind-upen tickar, commit:a sedan den köade laddningen. Gäller
+  // tank/brute/shielder-lunges (startCharge). Kontakt-skada nedan körs fortf. under hold.
+  let _windingUp = false;
+  if (b.windupUntil) {
+    if (now < b.windupUntil) {
+      _windingUp = true;                          // telegraferar — kör inte power-AI:n denna tick
+    } else {
+      b.windupUntil = 0;
+      b.chargeUntil = now + (b.windupDur || 700);  // wind-up klar → commit:a laddningen
+      b.windupDur = 0;
+    }
+  }
+
+  if (!_windingUp) switch (b.ai) {
     case 'caster':         aiCaster(sim, b, target, ndx, ndy, d, hpFrac, dt, now); break;
     case 'tank_charger':   aiTankCharger(sim, b, target, ndx, ndy, d, hpFrac, dt, now); break;
     case 'cloaker':        aiCloaker(sim, b, target, ndx, ndy, d, hpFrac, dt, now); break;
