@@ -71,6 +71,13 @@ function createSim(room) {
     nextEnemyIdx: 0,
     spawnTimer: 1.5,
     waveActive: false,
+    // #29: server-auktoritativ co-op-wipe → ended-flagga. Utan denna satte
+    // story/wave-familjen ALDRIG en *Ended-flagga → 15s-sweepen rev aldrig simmen
+    // → post-game-rum fastnade som "pågår" (host-migration efter game-over) och
+    // late-join drog in nya spelare i den döda simmen. storyEnded ingår i
+    // SIM_ENDED_FLAGS (server.js). _coopWipeSince = ms-stämpel för när alla dog.
+    storyEnded: false,
+    _coopWipeSince: 0,
     enemiesToSpawn: 0,
     activeZonePool: null,
     currentZone: -1,
@@ -648,6 +655,39 @@ function tickSim(sim) {
   }
   // Revive-tick: om annan LEVANDE spelare står inom 50px av kroppen i 5s → revive
   updateRevive(sim, dt);
+
+  // #29: server-auktoritativ co-op-WIPE-detektering. Story/wave-familjen satte förr
+  // ALDRIG någon *Ended-flagga → 15s-sweepen (server.js) rev aldrig simmen efter
+  // game-over → post-game-rummet fastnade som "pågår" (host-migration) + late-join
+  // drog in nya spelare i den döda simmen. Räkna levande människor; om 0 levande OCH
+  // ingen revive pågår i > 12s (måste vara > REVIVE_SEC=5 så en aktiv revive aldrig
+  // felflaggas) → sätt storyEnded (ingår i SIM_ENDED_FLAGS). Klientens slutpanel är
+  // redan lokal/event-buren → ingen ny klientändring behövs.
+  if (sim.waveActive && !sim.storyEnded) {
+    let _humansAlive = 0, _humansTotal = 0;
+    for (const [, mw] of sim.room.members) {
+      if (!mw || mw._isBot || mw.isSpectator || !mw.playerState) continue;
+      _humansTotal++;
+      if ((mw.playerState.hp || 0) > 0) _humansAlive++;
+    }
+    let _reviving = false;
+    if (sim.deadBodies) {
+      for (const _k of Object.keys(sim.deadBodies)) {
+        if ((sim.deadBodies[_k].reviveTimer || 0) > 0) { _reviving = true; break; }
+      }
+    }
+    // Kräv minst en människa i rummet (annars är det ett tomt/ghost-rum som reapern
+    // sköter) — och 0 levande + ingen pågående revive = wipe.
+    if (_humansTotal > 0 && _humansAlive === 0 && !_reviving) {
+      sim._coopWipeSince = sim._coopWipeSince || now;
+      if (now - sim._coopWipeSince >= 12000) {
+        sim.storyEnded = true;
+        sim.eventQueue.push({ type: 'coop_game_over' });
+      }
+    } else {
+      sim._coopWipeSince = 0;
+    }
+  }
 
   // Bullet-uppdatering (frozen vid time-stop? Original-kod fryser BARA enemies, ej bullets)
   updateBullets(sim, dt, now);
@@ -9025,6 +9065,10 @@ function startSim(sim, opts) {
     sim.eventQueue.push({ type: 'countdown_start', durationMs: sim.countdownMs || 3000 });
   } else {
     loadStage(sim, sim.wave);
+    // #29: (re)start av story/wave → nolla wipe/ended-state (annars kan ett rum som
+    // startas om ärva storyEnded=true och rivas direkt av 15s-sweepen).
+    sim.storyEnded = false;
+    sim._coopWipeSince = 0;
   }
   sim.lastTick = Date.now();
   // Tick-profiling: logga slow ticks i prod. Throttled 2s max.
@@ -9821,6 +9865,10 @@ function applyLoadStage(sim, peerId, msg) {
   // inte är stuck. Spelare som dog precis innan stage-clear ska respawna fresh.
   sim.deadBodies = {};
   loadStage(sim, wave);
+  // #29: ny stage laddad → nolla wipe/ended-state så en ny våg inte fastnar som
+  // "ended" (och en revive+stage-clear efter en tidigare wipe-scare inte river simmen).
+  sim.storyEnded = false;
+  sim._coopWipeSince = 0;
 }
 
 // ============================================================

@@ -70,7 +70,9 @@ function joinQueue(members, mode) {
   for (const ws of members) {
     if (ws._mmTicket) leave(ws);            // re-queue: släpp gammal ticket först (endast kö-tickets — mid-accept nekades ovan)
     const r = ws.roomCode ? H.rooms.get(ws.roomCode) : null;
-    if (r && r.meta && r.meta.started) return 'inroom';
+    // #23: en sim i 15s-ended-fönstret räknas INTE som "i match" — spelaren sitter
+    // i post-game-lobbyn och ska kunna köa igen (H.simEnded exponeras av server.js).
+    if (r && r.meta && r.meta.started && !(H && H.simEnded && H.simEnded(r))) return 'inroom';
   }
   const ticket = { members: members.slice(), mode, joinedAt: Date.now(), size: members.length };
   for (const ws of members) ws._mmTicket = ticket;
@@ -271,16 +273,25 @@ function finalizeMatch(matchId) {
   // placera medlemmar: host slot 0, resten 1..N. Lobby = party → flytta varje
   // medlem UT ur sin lobby in i match-rummet; töm + radera tomma lobbies.
   for (const ws of entry.members) {
+    // AUDIT C27: null matchmaker-fälten FÖRST så den re-entranta matchmaker.leave()
+    // inne i handleDisconnect blir en no-op vid eviction ur gamla lobbyn.
+    ws._mmMatchId = null;
+    ws._mmTicket = null;
     const oldRoom = H.rooms.get(ws.roomCode);
     if (oldRoom && oldRoom !== room) {
-      oldRoom.members.delete(ws.id);
-      if (oldRoom.members.size === 0) H.rooms.delete(oldRoom.code);
-      else if (oldRoom.hostId === ws.id) oldRoom.hostId = oldRoom.members.keys().next().value;
+      // Återanvänd handleDisconnect istället för rå members.delete: ger slot-return,
+      // peer_left/_jsonWorld-spegling, host-migration (!_isBot && !isSpectator) och
+      // stopSim + rooms.delete på tomt rum (annars läcker sim-intervallet).
+      if (H.handleDisconnect) {
+        H.handleDisconnect(ws);
+      } else {
+        oldRoom.members.delete(ws.id);
+        if (oldRoom.members.size === 0) H.rooms.delete(oldRoom.code);
+        else if (oldRoom.hostId === ws.id) oldRoom.hostId = oldRoom.members.keys().next().value;
+      }
     }
     ws.roomCode = code;
     ws.stableSlot = (ws === host) ? 0 : (room._nextSlot++);
-    ws._mmMatchId = null;
-    ws._mmTicket = null;
     if (teamOf[ws.id]) ws.tdmTeam = teamOf[ws.id];
     room.members.set(ws.id, ws);
   }
@@ -327,7 +338,9 @@ function handle(ws, msg) {
         const room = ws.roomCode ? H.rooms.get(ws.roomCode) : null;
         if (room) {
           if (ws.id !== room.hostId) { send(ws, { type: 'queue_error', code: 'notleader' }); return; }
-          if (room.meta && room.meta.started) { send(ws, { type: 'queue_error', code: 'inroom' }); return; }
+          // #23: 15s-ended-fönstret (post-game-lobby) räknas inte som "i match" — host
+          // ska kunna köa nästa match direkt (H.simEnded exponeras av server.js).
+          if (room.meta && room.meta.started && !(H && H.simEnded && H.simEnded(room))) { send(ws, { type: 'queue_error', code: 'inroom' }); return; }
           members = [];
           // SPECTATE: åskådare ska aldrig dras in i en matchmaking-ticket som spelare.
           for (const [, m] of room.members) if (!m._isBot && !m.isSpectator && m.readyState === 1) members.push(m);

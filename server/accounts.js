@@ -548,11 +548,19 @@ function markDeleted(id) {
   _saveTimer = setTimeout(() => { _saveTimer = null; if (_dirty) saveNow(); }, 3000);
 }
 
-process.on('SIGTERM', () => {
+// Synkron shutdown-flush (konton + rapporter). SKA anropas av server.js:s enda
+// SIGTERM/SIGINT-handler EFTER udpServer.close() (BYE-all) och FÖRE process.exit(0).
+// process.exit ligger EJ här längre: accounts.js krävs FÖRST (server.js:7) → en
+// synkron exit här sköt ned server.js:s senare-registrerade handler innan den hann
+// BYE:a UDP-klienterna (→ ~8s klient-hang vid varje deploy). Idempotent (setarna töms).
+function flushSync() {
   try { saveNowSync(); } catch (e) {}
   try { saveReportsSync(); } catch (e) {}   // B2: flusha rapport-buffern före exit
-  process.exit(0);
-});
+}
+// Behåll en egen SIGTERM-listener som flushar (utan exit) som skyddsnät — om server.js:s
+// centrala handler av någon anledning inte kör hinner konton ändå sparas. INGEN process.exit
+// här (se flushSync-kommentaren). Flera SIGTERM-listeners körs båda; server.js äger exit.
+process.on('SIGTERM', () => { flushSync(); });
 
 load();
 
@@ -564,7 +572,7 @@ function activityOf(ws) {
   return { activity: ri.started ? 'match' : 'lobby', mode: ri.mode, code: ri.code };
 }
 
-function buildFriendEntry(fid) {
+function buildFriendEntry(fid, viewerId) {
   const a = accounts.get(fid);
   // VÄNFÖRLUST-FIX (2026-06-12): okänt konto = vännen har inte loggat in på DEN
   // HÄR servern ännu (färsk region-volym / dataförlust). Förr: null → vännen
@@ -573,6 +581,12 @@ function buildFriendEntry(fid) {
   // (pending:1) så relationen överlever — klienten visar cachat namn och
   // entryt blir komplett när vännen loggar in en gång på servern.
   if (!a) return { id: fid, name: '', avatar: {}, level: 1, online: false, pending: 1 };
+  // BLOCK-MASKERING: om någon part blockerat den andra → maskera presens (online/aktivitet/
+  // rumskod) i BÅDA riktningarna. Ingen läckt online-status och ingen joinbar kod → blockad
+  // vän kan inte GÅ-MED:a. Entryt behålls (id/namn/avatar/nivå) men markeras offline.
+  if (viewerId && (isBlockedBy(a, viewerId) || isBlockedBy(accounts.get(viewerId), fid))) {
+    return { id: a.id, name: a.name, avatar: a.avatar, level: a.level, online: false };
+  }
   const ws = online.get(fid);
   // online = bara en GENUINT oppen socket (readyState===1) -- en dod-men-ej-stadad
   // socket ska inte visa vannen som online (matchar liveness-mönstret i server.js).
@@ -590,7 +604,7 @@ function buildFriendEntry(fid) {
 function buildFriendsList(acc) {
   const out = [];
   for (const fid of acc.friends) {
-    const e = buildFriendEntry(fid);
+    const e = buildFriendEntry(fid, acc.id);   // viewerId → block-maskering i buildFriendEntry
     if (e) out.push(e);
   }
   return out;
@@ -683,7 +697,8 @@ function onDisconnect(ws) {
     return;
   }
   online.delete(id);
-  revokeSessionsFor(id); // C172: ingen stale-token-replay efter offline
+  graceSessionsFor(id, SESSION_GRACE_MS); // C172-grace: snabb reconnect (<grace) binder på cachad token utan HTTPS; token dör efter grace
+
   const st = _updState.get(id);
   if (st && st.timer) { clearTimeout(st.timer); st.timer = null; }
   const acc = accounts.get(id);
@@ -732,6 +747,18 @@ function lookupSession(token) {
 function revokeSessionsFor(accountId) {
   if (!accountId) return;
   for (const [t, s] of sessionTokens) if (s.accountId === accountId) sessionTokens.delete(t);
+}
+// GRACE-variant av revoke (transport-död, EJ ban/switch/delete): raderar INTE token utan sänker
+// dess exp till nu+grace. En snabb reconnect (<grace) från SAMMA ägare binder DIREKT via cachad
+// token (ingen acct_error 'session', ingen extra HTTPS-runda). lookupSession/cleanup-intervallet
+// reapar de utgångna → ingen extra plumbing. C172-replay-fönstret krymper från TTL till grace
+// (== reconnect-stash-TTL på server-sidan) → strikt snävare än pre-C172, seamless rejoin bevaras.
+const SESSION_GRACE_MS = 180000; // matchar RECONNECT_STASH_TTL_MS i server.js (rummet lever lika länge)
+function graceSessionsFor(accountId, graceMs) {
+  if (!accountId) return;
+  const g = Math.max(0, graceMs || 0);
+  const until = Date.now() + g;
+  for (const [, s] of sessionTokens) if (s.accountId === accountId && s.exp > until) s.exp = until;
 }
 setInterval(() => {
   const now = Date.now();
@@ -984,6 +1011,12 @@ function handleSessionHttp(req, res) {
 function handleUpdate(ws, msg) {
   const me = getMe(ws);
   if (!me) { sendErr(ws, 'auth'); return; }
+  // Snapshot presence-fält FÖRE mutation → pusha vänner om namn/avatar/nivå ändras (annars
+  // syntes gammalt namn/nivå tills klientens ~15s friends_sync-poll). level fångas här (ej i
+  // stats-blocket) för den ändras bara när stats finns — utan stats blir jämförelsen no-op.
+  const prevName = me.name;
+  const prevLevel = me.level;
+  const prevAvatar = JSON.stringify(me.avatar || {});
   const nameForced = !!me._nameForce;  // admin döpte om → ignorera klientens namn-push tills adopterat
   const name = sanitizeName(msg.name);
   if (name && !nameForced) recordNameAttempt(me, name, !nameFlagged(name), false);   // logga försöket
@@ -1075,6 +1108,10 @@ function handleUpdate(ws, msg) {
     if (adopted) { me._economyForce = false; ws._forceEcon = false; }
   }
   if (nameForced && ws._forceName) { me._nameForce = false; ws._forceName = false; }
+  // Presence-push (throttlad) när namn/avatar/nivå faktiskt ändrats → vänner ser nytt
+  // namn/nivå inom ~1s i st.f. upp till 15s. notifyFriendsOf (ej -Now): UPDATE_THROTTLE
+  // coalescar acct_update-spam; namn/avatar/nivå behöver inte vara lika direkt som online/offline.
+  if (me.name !== prevName || me.level !== prevLevel || JSON.stringify(me.avatar || {}) !== prevAvatar) notifyFriendsOf(me.id);
   markDirty(me.id);
   sendOk(ws, 'update');
 }
@@ -1805,13 +1842,20 @@ function handleBlock(ws, msg) {
     const other = accounts.get(id);
     arrRemove(me.reqIn, id);
     arrRemove(me.reqOut, id);
+    // BLOCK BRYTER VÄNSKAP: ta bort ömsesidig vänskap (speglar handleFriendRemove) så en
+    // blockad vän försvinner ur båda parters presens/listor — inte bara maskeras.
+    arrRemove(me.friends, id);
     if (other) {
       arrRemove(other.reqIn, me.id);
       arrRemove(other.reqOut, me.id);
+      arrRemove(other.friends, me.id);
       markDirty(other.id);
     }
     markDirty(me.id);
     console.log('[ACCT] block', me.id, '→', id);
+    // Pusha uppdaterad lista till båda parter → blockad vän tappas ur presens direkt (ej vid nästa poll)
+    if (online.has(me.id)) sendFriendsUpdate(me.id);
+    if (other && online.has(id)) sendFriendsUpdate(id);
   }
   // svara med auktoritativ lista (klienten speglar den i Account.blocked)
   sendOk(ws, 'block', { blocked: me.blocked.slice() });
@@ -1918,13 +1962,10 @@ function handleAccountDelete(ws) {
   const me = getMe(ws);
   if (!me) { sendErr(ws, 'auth'); return; }
   const id = me.id;
-  const friendIds = Array.isArray(me.friends) ? me.friends.slice() : [];
   console.log('[ACCT] self-delete', id, '(', me.name, ')');
   H.send(ws, { type: 'acct_deleted', id });   // bekräftelse INNAN socketen får stängas
-  deleteAccountCore(id);
+  deleteAccountCore(id);   // pushar nu själv online-vänner (centraliserat) → kontot försvinner direkt ur deras UI
   ws.accountId = null;   // socketen obunden — nästa acct_login skapar ett nytt gäst-konto
-  // online-vänner ser kontot försvinna direkt (deras listor är redan städade + dirty)
-  for (const fid of friendIds) { if (online.has(fid)) scheduleFriendsUpdate(fid); }
 }
 
 function handle(ws, msg, helpers) {
@@ -2114,6 +2155,10 @@ function adminSetName(id, name) {
 function deleteAccountCore(id) {
   const acc = accounts.get(String(id));
   if (!acc) return false;
+  // Snapshot vännerna FÖRE array-mutation → live-push till online-vänner efter delete så det
+  // raderade kontot försvinner ur deras UI direkt (annars kvar tills nästa poll). Centraliserat
+  // här → täcker BÅDE admin- och self-delete.
+  const friendIds = Array.isArray(acc.friends) ? acc.friends.slice() : [];
   revokeSessionsFor(acc.id);
   online.delete(acc.id);
   // reversera provider-index (indexAccount) så stale uppslag inte pekar på raderat konto
@@ -2136,6 +2181,10 @@ function deleteAccountCore(id) {
   }
   accounts.delete(acc.id);
   markDeleted(acc.id);
+  // Live-push: sendFriendsUpdate bygger om varje väns lista ur DERAS egen friends-array (redan
+  // strippad på acc.id ovan) → den raderade vännen är borta. scheduleFriendsUpdate no-oppar för
+  // offline-vänner. Täcker admin-delete (adminDeleteAccount) OCH self-delete (handleAccountDelete).
+  for (const fid of friendIds) { if (online.has(fid)) scheduleFriendsUpdate(fid); }
   return true;
 }
 
@@ -2736,7 +2785,7 @@ function postJSON(url,body,cb){fetch(url,{method:"POST",headers:hdr(),body:JSON.
  return r.json().then(function(j){cb(r.ok,j)}).catch(function(){cb(r.ok,{})})}).catch(function(){cb(false,{})})}
 </script></body></html>`;
 
-module.exports = { nameFlagged, handle, onDisconnect, presenceChanged, handleGoogleRedirect, handleGoogleCallback, handleSessionHttp, wsForAccount, handleAdminHttp, creditMatchEndXp, isBlockedPair,
+module.exports = { nameFlagged, handle, onDisconnect, presenceChanged, handleGoogleRedirect, handleGoogleCallback, handleSessionHttp, wsForAccount, handleAdminHttp, creditMatchEndXp, isBlockedPair, flushSync,
   // Test/debug-hook (används i verifierings-skript, EJ i produktionskod)
   _flush: function(cb) {
     if (_pendingWrites === 0 && !_dirty && _dirtySet.size === 0 && _deletedSet.size === 0) { cb(); return; }

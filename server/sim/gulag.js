@@ -657,7 +657,7 @@ function tickGulag(sim, dt, now) {
       for (const [_tp, _tw] of sim.room.members) {
         if (_tp === m.a || _tp === m.b) continue;
         const _tps = _tw && _tw.playerState;
-        if (_tps && (_tps.spectating || _tps.gulagState)) _tAud.push(_tp);
+        if (_tw && (_tw.isSpectator || (_tps && (_tps.spectating || _tps.gulagState)))) _tAud.push(_tp);
       }
       sim.eventQueue.push({
         type: 'gulag_tick', matchId: m.id, a: m.a, b: m.b,

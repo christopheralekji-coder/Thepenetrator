@@ -31,6 +31,15 @@ const REL_HDR = 17, UNREL_HDR = 13;
 const RTO_MIN = 100, RTO_MAX = 2000;
 const HEARTBEAT_MS = 1000;
 const TIMEOUT_MS = 8000;
+// C10: app-växling — en backgroundad (verifierad) peer får matcha WS-bakgrunds-grace
+// (== RECONNECT_STASH_TTL_MS i server.js) så app-switch <180s inte reapar conn:en och
+// därmed inte pushar vänner offline. Overifierad peer graceas ALDRIG (anti-amplifiering).
+const BG_TIMEOUT_MS = 180000;
+// C46: LINGER-close — vid close() med obekräftade reliable-frags (t.ex. spectate_ended
+// skickat samma tick som close) fortsätt ticka+retransmittera upp till LINGER_MS så
+// eventet inte tyst försvinner på lossy länk; skicka BYE + emit('close') först när
+// _unacked är tömt eller lingret löper ut.
+const LINGER_MS = 1500;
 const TICK_MS = 30;
 // Otillförlitlig återmonterings-buffert: max antal halvfärdiga pktSeq vi håller
 // (skydd mot minnesläck vid förlust). Vid överskridande slängs äldsta.
@@ -128,6 +137,11 @@ class Connection extends EventEmitter {
     this._srtt = 200; this._rto = 300;
     this._lastRecvAt = now;
     this._lastHbAt = now;
+    this._isBackgrounded = false;           // C10: satt av server.js på client_bg → längre reap-grace
+    // C46: LINGER-close state (soft-close som fortsätter dränera _unacked innan BYE)
+    this._lingering = false;
+    this._lingerUntil = 0;
+    this._closeReason = null;
   }
 
   // ── WS-kompatibel yta ──
@@ -138,7 +152,7 @@ class Connection extends EventEmitter {
   getRtt() { return Math.round(this._srtt); }    // smoothed RTT (ms) — bullets.js lag-comp
 
   send(data) {                              // RELIABLE (default — events/acct/lobby)
-    if (this.closed) return;
+    if (this.closed || this._lingering) return;   // C46: inga nya frags under linger-close
     const buf = Buffer.isBuffer(data) ? data : Buffer.from(String(data), 'utf8');
     const msgId = this._msgIdNext++;
     const fragCount = Math.max(1, Math.ceil(buf.length / MAX_PAYLOAD));
@@ -173,7 +187,7 @@ class Connection extends EventEmitter {
   }
 
   sendUnreliable(data) {                    // UNRELIABLE (world-snapshots)
-    if (this.closed) return;
+    if (this.closed || this._lingering) return;   // C46: inga nya frags under linger-close
     const buf = Buffer.isBuffer(data) ? data : Buffer.from(String(data), 'utf8');
     const pktSeq = this._unrelSeqNext++;
     const fragCount = Math.max(1, Math.ceil(buf.length / MAX_PAYLOAD));
@@ -186,8 +200,14 @@ class Connection extends EventEmitter {
   // ── Inkommande datagram ──
   _onPacket(buf) {
     if (this.closed) return;
+    // C8: session-guard FÖRE lastRecvAt-uppdatering — alla paket som når hit (REL/ACK/
+    // UNREL/PING/PONG/BYE) bär session i offset 1 (HELLO/WELCOME når aldrig hit). Ett
+    // spoofat/stale-session-paket får varken hålla conn:en vid liv eller mutera state.
+    // (speglar klientens C219-guard i UdpSock.gd)
+    if (buf.length >= 5 && buf.readUInt32LE(1) !== this.session) return;
     this._lastRecvAt = Date.now();
     this._verified = true;                  // varje mottaget paket bevisar return-routability (C242)
+    this._isBackgrounded = false;           // C10: inkommande datagram = foreground → återställ snabb 8s-timeout
     try {
       switch (buf[0]) {
         case T.REL:   this._onRel(buf);  break;
@@ -308,22 +328,19 @@ class Connection extends EventEmitter {
 
   tick(now) {
     if (this.closed) return;
-    const timeoutMs = this._verified ? TIMEOUT_MS : UNVERIFIED_TIMEOUT_MS;   // C242: reap spoofad/overifierad peer snabbt
-    if (now - this._lastRecvAt >= timeoutMs) { this.close('timeout'); return; }
-    for (const [relSeq, e] of this._unacked) {          // resend obekräftade frags (PACED)
-      if (e.sentAt > 0 && now - e.sentAt >= this._rto) {
-        // C125: liveness knyts till ACK-framsteg, ej bara _lastRecvAt. En peer som håller
-        // conn vid liv (inputs/pings) men vars ACKs ständigt tappas → frame når retransmit-taket → reap.
-        if (e.sends >= MAX_RETRANSMIT) {
-          try { const p = e.pkt; console.log('[REL-GIVEUP] msgId=' + p.readUInt32LE(9) + ' fragIdx=' + p.readUInt16LE(13) + '/' + p.readUInt16LE(15) + ' unacked=' + this._unacked.size + ' size=' + e.size); } catch (_) {}
-          this.close('rel-giveup'); return;
-        }
-        // re-köa i st.f. att blasta ALLA på en gång (annars samma burst-spiral som orsakade
-        // klientens "Buffer full"). sentAt:0 → drain sätter sentAt + sends vid faktisk sändning.
-        e.sentAt = 0;
-        this._sendQ.push(relSeq);
-      }
+    // C46: LINGER-close — fortsätt retransmittera obekräftade frags tills tömt eller lingret
+    // löper ut, HÅRD-stäng sen (BYE + emit 'close'). Inga heartbeats/reap-timeout under linger.
+    if (this._lingering) {
+      this._retransmitUnacked(now);
+      this._drainSendQ(now, SEND_BUDGET_PER_TICK);
+      if (this._unacked.size === 0 || now >= this._lingerUntil) this._hardClose(this._closeReason);
+      return;
     }
+    // C10: backgroundad (verifierad) peer får matcha WS-bakgrunds-grace; overifierad reaps snabbt.
+    let timeoutMs = this._verified ? TIMEOUT_MS : UNVERIFIED_TIMEOUT_MS;   // C242: reap spoofad/overifierad peer snabbt
+    if (this._verified && this._isBackgrounded) timeoutMs = BG_TIMEOUT_MS;
+    if (now - this._lastRecvAt >= timeoutMs) { this.close('timeout'); return; }
+    if (this._retransmitUnacked(now)) { this.close('rel-giveup'); return; }
     this._drainSendQ(now, SEND_BUDGET_PER_TICK);
     // C242: skicka ALDRIG heartbeat till en overifierad peer → ingen reflektions-amplifiering mot spoofad IP.
     if (this._verified && now - this._lastHbAt >= HEARTBEAT_MS) {
@@ -332,8 +349,45 @@ class Connection extends EventEmitter {
     }
   }
 
+  // Re-köa obekräftade reliable-frags vars RTO löpt ut (PACED). Returnerar true om NÅGON
+  // frame nått retransmit-taket → anroparen ska stänga conn:en ('rel-giveup').
+  _retransmitUnacked(now) {
+    for (const [relSeq, e] of this._unacked) {
+      if (e.sentAt > 0 && now - e.sentAt >= this._rto) {
+        // C125: liveness knyts till ACK-framsteg, ej bara _lastRecvAt. En peer som håller
+        // conn vid liv (inputs/pings) men vars ACKs ständigt tappas → frame når retransmit-taket → reap.
+        if (e.sends >= MAX_RETRANSMIT) {
+          try { const p = e.pkt; console.log('[REL-GIVEUP] msgId=' + p.readUInt32LE(9) + ' fragIdx=' + p.readUInt16LE(13) + '/' + p.readUInt16LE(15) + ' unacked=' + this._unacked.size + ' size=' + e.size); } catch (_) {}
+          return true;
+        }
+        // re-köa i st.f. att blasta ALLA på en gång (annars samma burst-spiral som orsakade
+        // klientens "Buffer full"). sentAt:0 → drain sätter sentAt + sends vid faktisk sändning.
+        e.sentAt = 0;
+        this._sendQ.push(relSeq);
+      }
+    }
+    return false;
+  }
+
   close(reason) {
+    if (this.closed || this._lingering) return;
+    // C46: om det finns obekräftade reliable-frags (t.ex. spectate_ended skickat samma tick)
+    // → gå i LINGER: fortsätt ticka+retransmittera upp till LINGER_MS så eventet levereras
+    // på lossy länk innan BYE. Tomt _unacked → hård-stäng direkt (bevarar snabb-vägen).
+    if (this._unacked.size > 0) {
+      this._lingering = true;
+      this._lingerUntil = Date.now() + LINGER_MS;
+      this._closeReason = reason || 'closed';
+      // Blockera nya sändningar under linger (send/sendUnreliable no-oppar), men behåll
+      // conn:en i UdpServer._conns + tickande (close-deletern fyrar först vid _hardClose).
+      return;
+    }
+    this._hardClose(reason);
+  }
+
+  _hardClose(reason) {
     if (this.closed) return;
+    this._lingering = false;
     this.closed = true; this.readyStateClosed = true;
     try { this._sendRaw(ctrlPkt(T.BYE, this.session)); } catch (e) { /* socket kan vara död */ }
     this.emit('close', reason || 'closed');
@@ -348,6 +402,10 @@ class UdpServer extends EventEmitter {
     this.port = port;
     this.lossSim = lossSim;
     this._conns = new Map();                // 'addr:port' -> Connection
+    // C4: token-bucket för reflekterad BYE till okänd addr:port (deploy/omstart → klient
+    // känner ej till att servern glömt sessionen). Nyckel 'addr:port' -> senaste BYE-tid.
+    // Rate-limitad (~1 BYE/s/nyckel) mot reflektions-amplifiering mot spoofade käll-IP:n.
+    this._unknownBye = new Map();
     this._sock = dgram.createSocket('udp4');
     this._nextSession = 1;
     this._sock.on('message', (buf, rinfo) => this._onMessage(buf, rinfo));
@@ -359,6 +417,11 @@ class UdpServer extends EventEmitter {
     this._timer = setInterval(() => {
       const now = Date.now();
       for (const c of this._conns.values()) c.tick(now);
+      // C4: bounda _unknownBye — släng poster äldre än några sekunder (token-bucket för
+      // reflekterad BYE behöver bara komma ihåg senaste ~sekunden per nyckel).
+      if (this._unknownBye.size > 0) {
+        for (const [k, t] of this._unknownBye) if (now - t >= 5000) this._unknownBye.delete(k);
+      }
     }, TICK_MS);
   }
   _send(buf, port, addr) {
@@ -370,25 +433,63 @@ class UdpServer extends EventEmitter {
     const key = rinfo.address + ':' + rinfo.port;
     if (buf[0] === T.HELLO) {
       let conn = this._conns.get(key);
+      // fix#8: HELLO bär ett klient-nonce i offset 5 (9-byte HELLO, längd-gated). Ett NYTT
+      // nonce = en NY app-instans som återanvänder addr:port (app-omstart); SAMMA nonce =
+      // en fördröjd WELCOME-retry från samma instans (får INTE supersede:a).
+      const helloNonce = buf.length >= 9 ? buf.readUInt32LE(5) : 0;
+      // C32: en NY klientinstans som återanvänder addr:port skickar HELLO medan den ansluter.
+      // Om den befintliga conn:en redan är i ett rum (verifierad + roomCode) är detta en
+      // ERSATT-instans → stäng gamla conn:en (close → _conns.delete + handleDisconnect →
+      // stash/rejoin) och skapa en färsk med ny session (relSeq-reset) så join inte sväljs
+      // som duplikat. Nonce-bärande klient: supersede BARA vid annat nonce (undvik falsk-
+      // supersede av fördröjd same-instans-retry). Äldre klient (nonce=0): behåll heuristiken.
+      if (conn && conn.roomCode && conn._verified) {
+        const differentInstance = (helloNonce !== 0 && conn._helloNonce != null && conn._helloNonce !== 0)
+          ? helloNonce !== conn._helloNonce
+          : true;
+        if (differentInstance) {
+          console.log('[UDP-REPLACE]', key, 'old-session=' + conn.session, 'nonce', conn._helloNonce, '->', helloNonce);
+          conn.close('replaced');
+          conn = null;
+        }
+      }
       if (!conn) {
         if (this._conns.size >= MAX_CONNS) return;        // C242: vägra nya conns när tabellen är full (släng tyst, ingen WELCOME)
         const session = this._nextSession++;
         conn = new Connection(session, (b) => this._send(b, rinfo.port, rinfo.address), Date.now());
         conn.address = rinfo.address; conn.port = rinfo.port; conn._key = key;
+        conn._helloNonce = helloNonce;                    // fix#8: tagga instansen för framtida supersede-beslut
         conn.on('close', () => this._conns.delete(key));
         this._conns.set(key, conn);
         this.emit('connection', conn);
+      } else if (conn._helloNonce == null && helloNonce !== 0) {
+        conn._helloNonce = helloNonce;                    // första gången vi ser ett nonce på en äldre conn
       }
       this._send(ctrlPkt(T.WELCOME, conn.session), rinfo.port, rinfo.address);   // (re)WELCOME (idempotent)
       return;
     }
     const conn = this._conns.get(key);
-    if (conn) conn._onPacket(buf);
+    if (conn) { conn._onPacket(buf); return; }
+    // C4: paket från OKÄND addr:port (ingen conn) — t.ex. klient som fortsätter skicka efter
+    // en server-omstart/BYE-tapp. Servern tystade tidigare → klienten hängde till sin egen
+    // 8s-timeout. Svara med BYE (bär klientens CLAIMADE session ur offset 1) så klienten
+    // flippar till STATE_CLOSED direkt och reconnectar. Rate-limitad mot reflektion.
+    if (buf.length >= 5) {
+      const now = Date.now();
+      const last = this._unknownBye.get(key) || 0;
+      if (now - last >= 1000) {
+        this._unknownBye.set(key, now);
+        this._send(ctrlPkt(T.BYE, buf.readUInt32LE(1)), rinfo.port, rinfo.address);
+      }
+    }
   }
   peers() { return [...this._conns.values()]; }   // aktiva Connections (för app-loopar t.ex. RTT)
   close() {
     clearInterval(this._timer);
-    for (const c of this._conns.values()) c.close('server-shutdown');
+    // C4/C46: HÅRD-stäng varje conn vid shutdown (skicka BYE-all direkt). Vi kan inte linger:a
+    // här — timern är redan stoppad så ingen tick skulle dränera lingret; BYE-at-exit är
+    // best-effort och måste gå ut synkront innან processen dör.
+    for (const c of this._conns.values()) c._hardClose('server-shutdown');
     try { this._sock.close(); } catch (e) { /* redan stängd */ }
   }
 }
@@ -432,7 +533,8 @@ class UdpClient extends EventEmitter {
   sendUnreliable(data) { if (this.conn) this.conn.sendUnreliable(data); }
   close() {
     clearInterval(this._timer);
-    if (this.conn) this.conn.close('client-shutdown');
+    // C46: timern är stoppad → linger kan inte dränera; hård-stäng direkt (skickar BYE synkront).
+    if (this.conn) this.conn._hardClose('client-shutdown');
     try { this._sock.close(); } catch (e) { /* redan stängd */ }
   }
 }

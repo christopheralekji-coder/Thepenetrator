@@ -44,22 +44,22 @@ function ev(ws, type) { return (ws._events || []).filter(e => e && e.type === ty
   a.playerState.x = 2000; a.playerState.y = 2000; b.playerState.x = 2010; b.playerState.y = 2000;
   sim.castledefensePerkFlags['p1'] = { medicrev: 1 };   // v3 perk-träd: LIVRÄDDARE (2x revive)
   down(sim, a);
-  a.playerState.cdDownReviveProgress = 2.49;   // just under medic reviveSec (2.5)
+  a.playerState.cdDownReviveProgress = 2.99;   // just under medic reviveSec (3.0 = downReviveSec 4 x0.75)
   step(sim);
-  assert(a.playerState.cdDowned === false, 'medic reviver revives at ~2.5s of progress');
+  assert(a.playerState.cdDowned === false, 'medic reviver revives at ~3.0s of progress');
   console.log('[OK] medic 2x: revives at half the progress');
 }
 
-// 2b. control — WITHOUT medic, 2.49s progress does NOT revive (needs 5s)
+// 2b. control — WITHOUT medic, 2.99s progress does NOT revive (needs 4s)
 {
   const { sim, members } = mk(2);
   const a = members.get('p0'), b = members.get('p1');
   a.playerState.x = 2000; a.playerState.y = 2000; b.playerState.x = 2010; b.playerState.y = 2000;
   down(sim, a);
-  a.playerState.cdDownReviveProgress = 2.49;
+  a.playerState.cdDownReviveProgress = 2.99;
   step(sim);
-  assert(a.playerState.cdDowned === true, 'non-medic must NOT revive at 2.5s (needs 5s)');
-  console.log('[OK] non-medic: 2.5s progress is not enough');
+  assert(a.playerState.cdDowned === true, 'non-medic must NOT revive at 3.0s (needs 4s)');
+  console.log('[OK] non-medic: 3.0s progress is not enough');
 }
 
 // 3. MULTI-REVIVER prefers MEDIC deterministically
@@ -71,7 +71,7 @@ function ev(ws, type) { return (ws._events || []).filter(e => e && e.type === ty
   c.playerState.x = 1990; c.playerState.y = 2000;   // medic, near
   sim.castledefensePerkFlags['p2'] = { medicrev: 1 };   // v3 perk-träd: LIVRÄDDARE (2x revive)
   down(sim, a);
-  a.playerState.cdDownReviveProgress = 2.49;   // only enough if the MEDIC is chosen
+  a.playerState.cdDownReviveProgress = 2.99;   // only enough if the MEDIC is chosen
   step(sim);
   assert(a.playerState.cdDowned === false, 'with a medic among revivers, medic speed is used (deterministic)');
   console.log('[OK] multi-reviver: medic preferred regardless of map order');

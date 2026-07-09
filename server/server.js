@@ -8,6 +8,7 @@ const accounts = require('./accounts'); // v2 konto/vÃ¤nner (acct_* â€” a
 const matchmaker = require('./matchmaker'); // v2 matchmaking-kö (queue_*/match_* — additivt)
 const groups = require('./groups'); // v2 matchmaking grupp-lager (group_* — additivt)
 const { attachUdp } = require('./net/udp-integration'); // UDP-transport (V2-native, V1 dött)
+let udpServer = null; // C-fix4: modul-scope-ref → shutdown-handlern kan BYE:a alla vid SIGTERM/SIGINT
 const PORT = process.env.PORT || 8080;
 
 // Healthcheck + error-reporting endpoint
@@ -189,6 +190,16 @@ const wss = new WebSocket.Server({
 const rooms = new Map(); // code â†’ { hostId, members: Map(id â†’ ws), meta: { hostName, mode, private, started, createdAt } }
 const publicRoomSubscribers = new Set(); // ws-references som vill ha live room-list updates
 
+// Räkna riktiga rum-medlemmar (spelare + bots), EXKLUDERA spectators — de ska
+// varken räknas mot rum-taket eller blåsa upp public-rooms-player-count. Speglar
+// room-sim.js _realMemberCount (privat där, oanvändbar härifrån). Bots (_isBot)
+// räknas fortfarande in (historiskt cap-beteende oförändrat).
+function realMemberCount(room) {
+  let n = 0;
+  for (const [, m] of room.members) if (!m || !m.isSpectator) n++;
+  return n;
+}
+
 // Bygg publikt room-snapshot fÃ¶r broadcast/snapshot till browse-skÃ¤rmen
 function buildPublicRoomsList() {
   const list = [];
@@ -198,7 +209,7 @@ function buildPublicRoomsList() {
       code,
       hostName: (room.meta && room.meta.hostName) || 'Spelare',
       mode: (room.meta && room.meta.mode) || 'story',
-      players: room.members.size,
+      players: realMemberCount(room),
       maxPlayers: (room.meta && room.meta.maxPlayers) || 8,
       started: !!(room.meta && room.meta.started),
       createdAt: (room.meta && room.meta.createdAt) || 0,
@@ -300,14 +311,60 @@ setInterval(() => {
     for (const [pid, m] of Array.from(room.members)) {
       if (m._isBot) continue;
       if (m.roomCode !== rcode) {
+        // AUDIT C28: membership-desync-städning kan INTE återanvända handleDisconnect
+        // (m.roomCode pekar på ETT ANNAT rum → fel room-lookup). Gör motsvarande
+        // sido-effekter mot THIS room explicit: slot-return, per-pid sim-städ,
+        // host-migration (!_isBot && !isSpectator) och peer_left-spegling.
+        if (m.stableSlot != null && m.stableSlot > 0 && room._freeSlots) room._freeSlots.push(m.stableSlot);
         room.members.delete(pid);
+        if (room.sim) {
+          const _s = room.sim, _pid = pid;
+          if (_s.deadBodies) delete _s.deadBodies[_pid];
+          if (_s.kothScores) delete _s.kothScores[_pid];
+          if (_s._kothPointAccum) delete _s._kothPointAccum[_pid];
+          if (_s.juggernautScores) delete _s.juggernautScores[_pid];
+          if (_s.juggernautKillsByPid) delete _s.juggernautKillsByPid[_pid];
+          if (_s.juggernautDmgToJug) delete _s.juggernautDmgToJug[_pid];
+          if (_s.battleroyaleKillsByPid) delete _s.battleroyaleKillsByPid[_pid];
+          if (_s.tdmDeathsByPid) delete _s.tdmDeathsByPid[_pid];
+          if (_s.battleroyaleActive && _s.battleroyaleEliminated && !_s.battleroyaleEliminated.includes(_pid)) {
+            if (m._reconnectToken) { _s._brPendingElim = _s._brPendingElim || {}; _s._brPendingElim[_pid] = Date.now(); }
+            else { _s.battleroyaleEliminated.push(_pid); if (typeof _s.battleroyaleAliveCount === 'number') _s.battleroyaleAliveCount = Math.max(0, _s.battleroyaleAliveCount - 1); }
+          }
+          if (_s.juggernautActive && _s.juggernautPid === _pid) {
+            const _nextJug = pickRandomHumanHunter(_s, _pid);
+            if (_nextJug) { transferJug(_s, _nextJug, 'jug_disconnected'); }
+            else {
+              _s.juggernautPid = null;
+              _s._juggernautAwaitFirstRespawn = true;
+              _s.eventQueue.push({ type: 'juggernaut_jug_changed', newJug: null, oldJug: _pid, reason: 'jug_disconnected', weapon: _s.juggernautWeapon, jugHp: _s.juggernautHpMax });
+            }
+          }
+        }
+        // host-migration om desync:ade medlemmen var host (tom-rum-fallet hanteras nedan)
+        if (room.hostId === pid) {
+          let nh = null;
+          for (const [, x] of room.members) { if (!x._isBot && !x.isSpectator) { nh = x; break; } }
+          if (nh) {
+            room.hostId = nh.id;
+            if (room.meta) room.meta.hostName = nh.playerName || room.meta.hostName;
+            broadcastPublicRooms();
+          }
+        }
+        // peer_left-spegling: host + alla _jsonWorld-peers (samma mönster som handleDisconnect)
+        const _h = room.members.get(room.hostId);
+        if (_h) send(_h, { type: 'peer_left', peerId: pid });
+        for (const [_pp, _pm] of room.members) {
+          if (_pp === room.hostId) continue;
+          if (_pm._jsonWorld) send(_pm, { type: 'peer_left', peerId: pid });
+        }
       } else if (m.readyState === 3) {
         handleDisconnect(m);
         m.roomCode = null;
       }
     }
     let _rc = 0;
-    for (const [, m] of room.members) { if (!m._isBot) _rc++; }
+    for (const [, m] of room.members) { if (!m._isBot && !m.isSpectator) _rc++; }
     if (_rc === 0 && !roomHasLiveReconnectStash(room)) {
       if (room.sim) stopSim(room.sim);
       rooms.delete(rcode);
@@ -323,7 +380,11 @@ setInterval(() => {
 // ("pågår"-badge på inaktiva rum för evigt). Sweep: 15s efter ended-flaggan
 // (slutpanelen är event-buren — world behövs inte längre) rivs simmen.
 const SIM_ENDED_FLAGS = ['tdmEnded', 'ctfEnded', 'siegeEnded', 'kothEnded',
-  'juggernautEnded', 'castledefenseEnded', 'heistEnded', 'battleroyaleEnded', 'gungameEnded'];
+  'juggernautEnded', 'castledefenseEnded', 'heistEnded', 'battleroyaleEnded', 'gungameEnded',
+  'storyEnded'];
+// Delad helper: har simmen nått sitt slut (någon ended-flagga satt)? Används av
+// late-join/lagbyte-gaten här och av matchmaker (exponeras via helper-handeln).
+function simEnded(room) { return !!(room && room.sim && SIM_ENDED_FLAGS.some((f) => room.sim[f])); }
 setInterval(() => {
   const nowMs = Date.now();
   for (const [, room] of rooms) {
@@ -340,7 +401,14 @@ setInterval(() => {
           for (const m of _specs) {
             room.members.delete(m.id);
             try { send(m, { type: 'spectate_ended' }); } catch (e) {}
-            try { (m.close || m.terminate).call(m); } catch (e) {}
+            // #5: kör handleDisconnect FÖRST (readyState 1 → presence → meny) så vänner
+            // ser meny-övergången; STÄNG sedan INTE V2-socketen (JSON/UDP) — close() vid
+            // readyState 3 ger offline-flap + token-revoke. Klienten navigerar själv på
+            // {type:'spectate_ended'}. BARA V1-WS behöver server-close.
+            try { handleDisconnect(m); } catch (e) {}
+            // #46: close() lingar nu i transporten tills spectate_ended-fragmentet
+            // ACK:ats (LINGER-close i udp-transport.js) → eventet tappas inte på lossy länk.
+            if (!(m._jsonWorld || m._isUdp)) { try { (m.close || m.terminate).call(m); } catch (e) {} }
           }
         }
         stopSim(room.sim);
@@ -408,7 +476,7 @@ function broadcast(room, obj, exceptId) {
 const acctHelpers = {
   send,
   roomInfo(w) {
-    if (!w || !w.roomCode) return null;
+    if (!w || w.isSpectator || !w.roomCode) return null;
     const room = rooms.get(w.roomCode);
     if (!room || !room.members.has(w.id)) return null;
     return {
@@ -442,6 +510,9 @@ function handleBinaryMessage(ws, raw) {
   if (!ws.roomCode) return;
   const room = rooms.get(ws.roomCode);
   if (!room) return;
+  // #25: åskådare skickar ingen binär world/input i normaldrift — och binära frames
+  // når aldrig JSON-sim_-gaten, så detta är enda stället att blockera dem. Tyst drop.
+  if (ws.isSpectator) return;
   if (raw.length < 2) return;
   const routeByte = raw[0];
   const idLen = raw[1];
@@ -548,7 +619,9 @@ function handleMessage(ws, msg) {
     // v2 (additivt): BYT LÄGE i lobbyn → nytt tak följer läget (aldrig under
     // nuvarande antal medlemmar — ingen ska kastas ut av ett lägesbyte)
     if (msg.maxPlayers != null) {
-      room.meta.maxPlayers = Math.max(Math.max(2, room.members.size),
+      // Golvet är riktiga medlemmar (spelare+bots), EJ spectators — annars kan en
+      // åskådare blåsa upp golvet och blockera sänkning av maxPlayers.
+      room.meta.maxPlayers = Math.max(Math.max(2, realMemberCount(room)),
         Math.min(25, parseInt(msg.maxPlayers, 10) || 8));
     }
     // A2-fix: lägesbytet nådde tidigare medlemmarna ENBART via hostens roster-relay
@@ -558,6 +631,12 @@ function handleMessage(ws, msg) {
     for (const [mpid, mm] of room.members) {
       if (mpid === ws.id || !mm._jsonWorld) continue;
       send(mm, { type: 'room_meta_changed', mode: room.meta.mode, maxPlayers: room.meta.maxPlayers });
+    }
+    // v2-fix: lägesbyte i lobbyn ska nå vänner-presensen direkt (annars såg vänner
+    // gammalt läge upp till ~15s tills klient-pollen). Bara vid mode-byte — det enda
+    // meta-fältet som når vän-entries. Speglar guarderna på rad 351.
+    if (msg.mode != null) {
+      for (const [, mm] of room.members) { if (!mm._isBot && !mm.isSpectator) accounts.presenceChanged(mm); }
     }
     broadcastPublicRooms();
     return;
@@ -585,6 +664,17 @@ function handleMessage(ws, msg) {
     const code = (msg.code || '').toUpperCase().trim();
     const room = rooms.get(code);
     if (!room) { send(ws, { type: 'error', error: 'Rummet finns inte' }); return; }
+    // C30: en utsparkad spelare får inte rejoin:a. Matcha på reconnect-token ELLER
+    // konto-id (samma nycklar som kick_peer lade i room._kicked). Ligger på rummet →
+    // dör med rummet, ingen städning behövs.
+    {
+      const _tok = msg.reconnectToken ? 't:' + String(msg.reconnectToken).slice(0, 40) : null;
+      const _acct = ws.accountId ? 'a:' + ws.accountId : null;
+      if (room._kicked && ((_tok && room._kicked.has(_tok)) || (_acct && room._kicked.has(_acct)))) {
+        send(ws, { type: 'error', error: 'Du är utsparkad' });
+        return;
+      }
+    }
     // SPECTATE (additivt): klienten joinar för att TITTA på en vän-match i progress.
     // En spectator får world-broadcasts (är i room.members) men registreras ALDRIG
     // som spelare — ingen playerState, inga score-maps, inget team, ingen slot, inga
@@ -634,13 +724,30 @@ function handleMessage(ws, msg) {
       handleDisconnect(ws);
       ws.roomCode = null;
     }
+    // B2-fix: en blockerad relation ska hindra vän-kods-join i BÅDA riktningarna
+    // (blockeraren ska aldrig hamna i samma rum som den blockade och vice versa).
+    // Körs efter split-brain-städningen men FÖRE slot-alloc/room.members.set. Den
+    // idempotenta re-join-genvägen ovan har redan returnerat (ofarligt: man är redan
+    // medlem). Hoppar medlemmar utan konto (gäster/bots) och en självträff.
+    if (ws.accountId) {
+      for (const [, mm] of room.members) {
+        if (!mm.accountId || mm.accountId === ws.accountId) continue;
+        if (accounts.isBlockedPair(mm.accountId, ws.accountId) || accounts.isBlockedPair(ws.accountId, mm.accountId)) {
+          send(ws, { type: 'error', error: 'Kan inte gå med' });
+          return;
+        }
+      }
+    }
     // v1.771: ghost-dedupe FÃ–RE size-check + slot-alloc. En halv-trasig anslutning vars
     // close ej firat (mobil byter wifiâ†”mobilnÃ¤t) ligger kvar som spÃ¶k-spelare i ~75s.
     // Kasta ut ev. kvarlevande ws med samma reconnect-token â†’ reconnecten Ã¥teranvÃ¤nder
     // ghost:ens slot (slot-kontinuitet) + ett fullt rum blockerar inte en rejoin. Hoppar
     // host (host-migration skÃ¶ter den) + bots. roomCode=null â†’ handleDisconnect early-
     // returnar pÃ¥ ghost:ens senare close (ingen dubbel-cleanup/dubbel-slot-free).
-    if (msg.reconnectToken) {
+    // #26: en SPECTATE-join får ALDRIG absorbera en ghost — ghosten är en levande
+    // spelares socket; en åskådare ska varken ärva dess playerState/host-roll eller
+    // terminera den. Gaten kräver därför !wantSpectate (rollen committas först nedan).
+    if (msg.reconnectToken && !wantSpectate) {
       ws._reconnectToken = String(msg.reconnectToken).slice(0, 40);
       if (!room._freeSlots) room._freeSlots = [];
       for (const [ghostPid, ghostWs] of room.members) {
@@ -694,8 +801,18 @@ function handleMessage(ws, msg) {
     // klar — först NU muteras socketens roll, så alla läsningar nedströms ser rätt.
     ws.isSpectator = wantSpectate;
     const _joinMaxP = (room.meta && room.meta.maxPlayers) || 8;
-    // Spectators räknas inte mot rum-taket (de är inte spelare).
-    if (!wantSpectate && room.members.size >= _joinMaxP) { send(ws, { type: 'error', error: 'Rummet är fullt (max ' + _joinMaxP + ')' }); return; }
+    // #br-30s / #24: en join vars token matchar en FÄRSK reconnect-stash äger en
+    // reserverad plats (spelaren tappade nyss anslutningen i aktiv sim) — avvisa
+    // den ALDRIG som "fullt". På disconnect togs ghosten ur members men slotten
+    // låg kvar i stashen, så ghost-dedupen frigör ingen plats när den återvänder →
+    // utan detta blockeras en giltig rejoin i ett fullt rum (t.ex. BR 25/25) och
+    // hela den levande körningen (cash/kills/vapen) går förlorad inom 30s-fönstret.
+    const _stashSeat = ws._reconnectToken && room._reconnectStash &&
+      room._reconnectStash[ws._reconnectToken] &&
+      (Date.now() - (room._reconnectStash[ws._reconnectToken].ts || 0)) < RECONNECT_STASH_TTL_MS;
+    // Spectators räknas inte mot rum-taket (de är inte spelare) — räkna bara
+    // riktiga medlemmar (spelare+bots) så en åskådare aldrig stjäl en spelar-slot.
+    if (!wantSpectate && !_stashSeat && realMemberCount(room) >= _joinMaxP) { send(ws, { type: 'error', error: 'Rummet är fullt (max ' + _joinMaxP + ')' }); return; }
     // Tilldela stabilt slot-index: Ã¥teranvÃ¤nd lÃ¤gsta lediga slot fÃ¶rst,
     // annars ta nÃ¤sta frÃ¥n rÃ¤knaren. Slot Ã¤ndras ALDRIG fÃ¶r en peer under
     // dess session; nÃ¤r peer lÃ¤mnar returneras slottet till _freeSlots.
@@ -723,12 +840,15 @@ function handleMessage(ws, msg) {
     }
     ws.roomCode = code;
     if (msg.name) ws.playerName = String(msg.name).trim().slice(0, 14);
+    // #26: gata stash-restoren på !ws.isSpectator — en åskådare får ALDRIG ärva en
+    // frånkopplad spelares pstate/host-roll (slot 0) och får inte KONSUMERA stashen
+    // (delete nedan) — den måste överleva tills den riktiga spelaren rejoinar.
     // v1.659: reconnect-restore â€” om token matchar en fÃ¤rsk stash (spelare som tappade
     // anslutningen <180s sedan i aktiv sim) Ã¥terstÃ¤ll server-side-only-state som INTE
     // self-healar via sim_input: Heist-roll + hp/shield (annars gratis-heal + roll-loss).
     // KÃ¶rs FÃ–RE late-join-blocken; PvP-blocken sÃ¤tter sedan fresh spawn (korrekt fÃ¶r PvP),
     // co-op/heist (utan PvP-block) behÃ¥ller restoren.
-    if (msg.reconnectToken) {
+    if (msg.reconnectToken && !ws.isSpectator) {
       ws._reconnectToken = String(msg.reconnectToken).slice(0, 40);
       // (ghost-dedupe kÃ¶rs nu HÃ–GRE UPP, fÃ¶re size-check/slot-alloc â€” se v1.771-blocket)
       // v1.697: rensa utgÃ¥ngna stash-entries (>180s) sÃ¥ de inte ackumuleras obegrÃ¤nsat
@@ -762,6 +882,10 @@ function handleMessage(ws, msg) {
         if (stash.shield != null) ws.playerState.shield = stash.shield;
         if (stash.speedMul != null) ws.playerState.speedMul = stash.speedMul;
         if (stash.weaponId != null) ws.playerState.weaponId = stash.weaponId;
+        // #51: TDM-rejoin ska INTE nollas till pistol. Flagga en genuin TDM-reconnect
+        // (stash bar ett giltigt vapen + TDM ar aktiv) sa TDM-late-join-blocket nedan
+        // bevarar det aterstallda vapnet i st.f. att clobbra hela playerState-objektet.
+        if (room.sim && room.sim.tdmActive && stash.weaponId != null) ws._tdmReconnect = true;
         // CD: terminerad-ghost-vagen -> flytta CD-mapparna fran gamla pid:t (stash.pid) -> nytt id.
         if (room.sim && room.sim.castledefenseActive && stash.pid && stash.pid !== ws.id) {
           const _sr = room.sim;
@@ -831,7 +955,7 @@ function handleMessage(ws, msg) {
     // Spectator-presence speglas inte (de "spelar" inte → vänner ska inte se dem i match).
     if (!ws.isSpectator) accounts.presenceChanged(ws); // v2 konto: vÃ¤nner ser lobby/match + rumskod
     // TDM late-joiner: tilldela team baserat pÃ¥ balans, push tdm_started-event riktat
-    if (room.sim && room.sim.tdmActive) {
+    if (room.sim && room.sim.tdmActive && !room.sim.tdmEnded) {
       let red = 0, blue = 0;
       for (const [, m] of room.members) {
         if (m.tdmTeam === 'red') red++;
@@ -845,8 +969,13 @@ function handleMessage(ws, msg) {
       const spawnY = Math.floor(arena.worldH * 0.50);
       if (!ws.isSpectator) {
         ws.tdmTeam = team;
+        // #51: en genuin TDM-reconnect bar ett aterstallt vapen i ws.playerState (fran
+        // stash) — fanga det INNAN vi klobbrar objektet, sa fresh-spawn inte nollar till
+        // pistol. Fresh late-join (ingen stash) -> _rw = null -> oforandrat beteende.
+        const _rw = (ws._tdmReconnect && ws.playerState && ws.playerState.weaponId) ? ws.playerState.weaponId : null;
         // Late-joiner fÃ¥r ocksÃ¥ shield + maxShield (annars saknar de PvP-shield helt)
         ws.playerState = { x: spawnX, y: spawnY, hp: 100, shield: 100, maxShield: 100, invulnUntil: Date.now() + 1500 };
+        if (_rw) ws.playerState.weaponId = _rw;
         room.sim.tdmKillsByPid[ws.id] = 0;
         room.sim.tdmDeathsByPid[ws.id] = 0;
       }
@@ -864,6 +993,10 @@ function handleMessage(ws, msg) {
         // pickups återuppstod som spök-loot efter app-bakgrundning/rejoin.
         pvpPickups: (room.sim.pvpPickups || []).map(p => ({ id: p.id, x: p.x, y: p.y, type: p.type, weaponId: p.weaponId, available: p.available })),
         shieldMax: 100,
+        // #51: additivt JSON-falt — TDM-rejoin skickar med det aterstallda vapnet sa
+        // klienten inte nollar arsenalen till pistol. Broadcast-start (fresh match) saknar
+        // faltet -> null -> klienten kor sitt vanliga pistol-reset. Aldre klienter ignorerar.
+        restoredWeaponId: (ws._tdmReconnect && ws.playerState && ws.playerState.weaponId) || null,
       }] });
       if (!ws.isSpectator) for (const [pid, m] of room.members) {
         if (pid === ws.id) continue;
@@ -871,7 +1004,7 @@ function handleMessage(ws, msg) {
       }
     }
     // CTF late-joiner: samma pattern men fÃ¶r CTF-arena + flag-state + ctf_started
-    if (room.sim && room.sim.ctfActive) {
+    if (room.sim && room.sim.ctfActive && !room.sim.ctfEnded) {
       const { CTF_ARENA } = require('../shared/ctf-arena');
       let red = 0, blue = 0;
       for (const [, m] of room.members) {
@@ -915,7 +1048,7 @@ function handleMessage(ws, msg) {
       }
     }
     // SIEGE late-joiner: samma pattern som CTF
-    if (room.sim && room.sim.siegeActive) {
+    if (room.sim && room.sim.siegeActive && !room.sim.siegeEnded) {
       const { SIEGE_ARENA } = require('../shared/siege-arena');
       let red = 0, blue = 0;
       for (const [, m] of room.members) {
@@ -962,7 +1095,7 @@ function handleMessage(ws, msg) {
       }
     }
     // GUNGAME late-joiner: spawna pÃ¥ roterande spawn, tier 0, FFA (inget team)
-    if (room.sim && room.sim.gungameActive) {
+    if (room.sim && room.sim.gungameActive && !room.sim.gungameEnded) {
       const { GUNGAME_ARENA, GUNGAME_WEAPONS } = require('../shared/gungame-arena');
       if (!ws.isSpectator) {
         const idx = (room.sim._gungameSpawnIdx || 0) % GUNGAME_ARENA.spawns.length;
@@ -1010,7 +1143,7 @@ function handleMessage(ws, msg) {
       send(ws, { type: 'sim_events', events: lateJoinEvents });
     }
     // KOTH late-joiner: spawna pÃ¥ roterande spawn-point + skicka current scores
-    if (room.sim && room.sim.kothActive) {
+    if (room.sim && room.sim.kothActive && !room.sim.kothEnded) {
       const { KOTH_ARENA } = require('../shared/koth-arena');
       if (!ws.isSpectator) {
         const idx = (room.sim._kothSpawnIdx || 0) % KOTH_ARENA.spawns.length;
@@ -1074,7 +1207,7 @@ function handleMessage(ws, msg) {
       send(ws, { type: 'sim_events', events: lateKothEvents });
     }
     // JUGGERNAUT late-joiner: spawn som hunter, roterande spawn-pos, fresh score
-    if (room.sim && room.sim.juggernautActive) {
+    if (room.sim && room.sim.juggernautActive && !room.sim.juggernautEnded) {
       const { JUGGERNAUT_ARENA } = require('../shared/juggernaut-arena');
       if (!ws.isSpectator) {
         const idx = (room.sim._juggernautSpawnIdx || 0) % JUGGERNAUT_ARENA.spawns.length;
@@ -1144,7 +1277,7 @@ function handleMessage(ws, msg) {
     // BATTLE ROYALE late-joiner: BR Ã¤r no-respawn â€” sÃ¤tt direkt som spectator.
     // Klient renderar match frÃ¥n spectator-cam. NÃ¤r matchen slutar kan de joina
     // rematch (vanlig flow).
-    if (room.sim && room.sim.battleroyaleActive) {
+    if (room.sim && room.sim.battleroyaleActive && !room.sim.battleroyaleEnded) {
       const { BATTLEROYALE_ARENA } = require('../shared/battleroyale-arena');
       // Spawnpos i mitten â€” de blir spectator omedelbart (hp=0)
       if (!ws.isSpectator && room.sim.brPredrop) {
@@ -1463,6 +1596,10 @@ function handleMessage(ws, msg) {
     // Forwarda meddelande till specifik peer eller alla i rummet
     const room = rooms.get(ws.roomCode);
     if (!room) return;
+    // #25: åskådare får ALDRIG relaya in i matchen (outfit/vcmd/emote bär from:ws.id
+    // → en Godot-klient kan instansiera en spök-NetPlayer). sim_*-gaten fångar inte
+    // 'relay' (fel prefix), så drop explicit här. Tyst drop.
+    if (ws.isSpectator) return;
     // B3: relay hade NOLL skydd — 24x fan-out-amplification pa delade event-
     // loopen (modifierad klient: 500 msg/s x 24 peers = 12k sand/s) + oandlig
     // vcmd/emote-spam. Token-fonster 6/s (stock-klienten skickar ~1/s) +
@@ -1492,7 +1629,9 @@ function handleMessage(ws, msg) {
   }
 
   if (msg.type === 'leave') {
-    handleDisconnect(ws);
+    // C30: suppressStash — en AVSIKTLIG lämnare (readyState hann bli !==1) ska aldrig
+    // få en reconnect-stash som håller tomma rum vid liv i grace-fönstret.
+    handleDisconnect(ws, { suppressStash: true });
     // A3c-fix: nolla roomCode (spegel av kick-vägen) — annars kör socketens
     // senare close handleDisconnect IGEN: dubbel slot-free (två joiners kan dela
     // slot), dubbel peer_left, och en oönskad reconnect-stash för en AVSIKTLIG
@@ -1525,6 +1664,9 @@ function handleMessage(ws, msg) {
     const room = rooms.get(ws.roomCode);
     if (!room) return;
     if (room.hostId !== ws.id) return;  // bara host fÃ¥r starta
+    // AUDIT C27: en host som startar en vanlig match ur en lobby som köade/accepterade
+    // matchmaking → dränera kvarvarande tickets så inga match_found-popups lever kvar.
+    for (const [, m] of room.members) { if (!m._isBot) matchmaker.leave(m); }
     // SPECTATE: en ny match (rematch/läges-byte) får ALDRIG dra in en spectator som
     // spelare i startSim-loparna. Släpp alla spectators ur rummet innan ny sim skapas
     // — deras klient återgår till menyn på 'spectate_ended'.
@@ -1534,7 +1676,12 @@ function handleMessage(ws, msg) {
       for (const m of _specs) {
         room.members.delete(m.id);
         try { send(m, { type: 'spectate_ended' }); } catch (e) {}
-        try { (m.close || m.terminate).call(m); } catch (e) {}
+        // #5: handleDisconnect FÖRST (readyState 1 → presence → meny), STÄNG sedan INTE
+        // V2-socketen (JSON/UDP) — close() vid readyState 3 ger offline-flap + token-revoke.
+        try { handleDisconnect(m); } catch (e) {}
+        // #46: close() lingar nu i transporten tills spectate_ended-fragmentet ACK:ats
+        // (LINGER-close i udp-transport.js) → eventet tappas inte på lossy länk.
+        if (!(m._jsonWorld || m._isUdp)) { try { (m.close || m.terminate).call(m); } catch (e) {} }
       }
     }
     // v2-tillÃ¤gg (additivt): custom stage-listor (Godot endless/bossrush m.fl.).
@@ -1706,7 +1853,12 @@ function handleMessage(ws, msg) {
       for (const m of _specs) {
         room.members.delete(m.id);
         try { send(m, { type: 'spectate_ended' }); } catch (e) {}
-        try { (m.close || m.terminate).call(m); } catch (e) {}
+        // #5: handleDisconnect FÖRST (readyState 1 → presence → meny), STÄNG sedan INTE
+        // V2-socketen (JSON/UDP) — close() vid readyState 3 ger offline-flap + token-revoke.
+        try { handleDisconnect(m); } catch (e) {}
+        // #46: close() lingar nu i transporten tills spectate_ended-fragmentet ACK:ats
+        // (LINGER-close i udp-transport.js) → eventet tappas inte på lossy länk.
+        if (!(m._jsonWorld || m._isUdp)) { try { (m.close || m.terminate).call(m); } catch (e) {} }
       }
     }
     stopSim(room.sim);
@@ -1722,7 +1874,12 @@ function handleMessage(ws, msg) {
   // mÃ¤nniska â†’ {type:'kicked'} + ws-close + samma stÃ¤dning som disconnect.
   if (msg.type === 'request_team_change') {
     const room = rooms.get(ws.roomCode);
-    if (!room || room.sim) return;                     // bara i lobbyn (fore match)
+    if (!room) return;
+    // #23/#42: tillåt lagbyte i lobbyn OCH i det 15s-ended-fönstret (post-game-lobbyn
+    // innan sweepen nollar simmen) — en avslutad sim ska inte spärra lagbyte. Om simmen
+    // verkligen PÅGÅR: skicka explicit team_change_denied (i st.f. tyst drop) så knappen
+    // aldrig känns död. team_change_denied är ett rent additivt JSON-kontrollmeddelande.
+    if (room.sim && !simEnded(room)) { send(ws, { type: 'team_change_denied', reason: 'sim_active' }); return; }
     const team = (msg.team === 'red' || msg.team === 'blue') ? msg.team : null;
     if (!team) return;
     ws.tdmTeam = team;                                 // server-auktoritativt lagbyte
@@ -1736,7 +1893,21 @@ function handleMessage(ws, msg) {
     const peerId = typeof msg.peerId === 'string' ? msg.peerId : '';
     if (!peerId || peerId === ws.id) return;           // kan inte kicka sig sjÃ¤lv
     const target = room.members.get(peerId);
-    if (!target) return;
+    if (!target) {
+      // C30 (c): en redan-DC:ad spelare lever bara i room._reconnectStash (keyad på
+      // token), inte i room.members → kicken hittar dem inte. Låt host ändå svartlista
+      // deras lingrande stash så rejoin-återställningen blockeras.
+      if (room._reconnectStash) {
+        for (const [key, stash] of Object.entries(room._reconnectStash)) {
+          if (stash && stash.pid === peerId) {
+            room._kicked = room._kicked || new Set();
+            room._kicked.add('t:' + key);
+            delete room._reconnectStash[key];
+          }
+        }
+      }
+      return;
+    }
     if (target._isBot) {
       // BOT: ta bort ur rummet + sim (botIds + per-pid sim-state, mirror av disconnect-stÃ¤dning)
       room.members.delete(peerId);
@@ -1772,10 +1943,20 @@ function handleMessage(ws, msg) {
       console.log('[ROOM]', room.code, 'bot', peerId, 'kicked by host');
     } else {
       // MÃ„NNISKA: meddela offret, stÃ¤da som disconnect, stÃ¤ng socketen.
+      // C30: gör kicken varaktig — svartlista både token och konto-id så en rejoin
+      // avvisas, och suppressStash så en halvdöd target (readyState !== 1) inte får
+      // en reconnect-stash som annars skulle ångra kicken via rejoin-restore.
+      room._kicked = room._kicked || new Set();
+      if (target._reconnectToken) room._kicked.add('t:' + target._reconnectToken);
+      if (target.accountId) room._kicked.add('a:' + target.accountId);
       send(target, { type: 'kicked' });
-      handleDisconnect(target);
+      handleDisconnect(target, { suppressStash: true });
       target.roomCode = null;            // close-eventets handleDisconnect no-op:ar dÃ¥
-      try { target.close(); } catch (e) {}
+      // #5: STÄNG INTE V2-socketen (JSON/UDP) — close() triggar close-event → onDisconnect
+      // vid readyState 3 → offline-flap + token-revoke. handleDisconnect ovan körde redan
+      // vid readyState 1 (presence → meny). Klienten navigerar själv på {type:'kicked'}.
+      // BARA V1-WS behöver server-close.
+      if (!(target._jsonWorld || target._isUdp)) { try { target.close(); } catch (e) {} }
       console.log('[ROOM]', room.code, peerId, 'kicked by host');
     }
     for (const [, m] of room.members) {
@@ -2657,7 +2838,7 @@ function scheduleHumanlessRoomCleanup(room) {
   }, HUMANLESS_ROOM_GRACE_MS);
 }
 
-function handleDisconnect(ws) {
+function handleDisconnect(ws, opts) {
   // v2 konto: offline/presence-push till vÃ¤nner (no-op utan acct_login).
   // Skiljer sjÃ¤lv pÃ¥ riktig disconnect vs 'leave'/kick via ws.readyState.
   accounts.onDisconnect(ws);
@@ -2684,7 +2865,7 @@ function handleDisconnect(ws) {
   // (readyState 1, samma konvention som accounts.onDisconnect). Forr fick
   // avsiktliga utträden (V2 skickade dessutom aldrig leave) en stash ->
   // roomHasLiveReconnectStash höll rummet + full bot-sim vid liv i 60s.
-  if (room.sim && ws._reconnectToken && ws.readyState !== 1) {
+  if (room.sim && ws._reconnectToken && ws.readyState !== 1 && !(opts && opts.suppressStash)) {
     room._reconnectStash = room._reconnectStash || {};
     const ps = ws.playerState || {};
     room._reconnectStash[ws._reconnectToken] = {
@@ -2715,8 +2896,13 @@ function handleDisconnect(ws) {
     // allas match. Sim:n kÃ¶rs server-side oberoende av hostId (hostId styr bara
     // host-only-kommandon sim_stop/sim_load_stage + peer_joined-notiser), sÃ¥ att
     // byta hostId mitt i match Ã¤r sÃ¤kert â€” sim:n fortsÃ¤tter oavbrutet.
+    // C31: två-pass — föredra en LEVANDE socket (readyState OPEN) så värdskapet aldrig
+    // hamnar på en döende/CLOSED-ghost (som reaper:n kan hålla kvar upp till ~25s). En
+    // död host får aldrig host_migrated (send() droppar den) och gav dubbel-migration
+    // när dess egen close till slut firade. Fallback = original-valet om alla är döende.
     let newHost = null;
-    for (const [, m] of room.members) { if (!m._isBot && !m.isSpectator) { newHost = m; break; } }
+    for (const [, m] of room.members) { if (!m._isBot && !m.isSpectator && m.readyState === WebSocket.OPEN) { newHost = m; break; } }
+    if (!newHost) for (const [, m] of room.members) { if (!m._isBot && !m.isSpectator) { newHost = m; break; } }
     if (newHost) {
       room.hostId = newHost.id;
       if (room.meta) room.meta.hostName = newHost.playerName || room.meta.hostName;
@@ -2773,7 +2959,12 @@ function handleDisconnect(ws) {
     if (room.sim) stopSim(room.sim);
     for (const m of room.members.values()) {
       send(m, { type: 'host_left' });
-      try { m.close(); } catch (e) {}
+      // #5: host_left saknade handleDisconnect helt → enda offline-signalen var close-eventet.
+      // Kör handleDisconnect FÖRST (readyState 1 → presence → meny) och STÄNG sedan INTE
+      // V2-socketen (JSON/UDP) — close() vid readyState 3 ger offline-flap + token-revoke.
+      // Klienten navigerar själv på {type:'host_left'}. BARA V1-WS behöver server-close.
+      try { handleDisconnect(m); } catch (e) {}
+      if (!(m._jsonWorld || m._isUdp)) { try { m.close(); } catch (e) {} }
     }
     rooms.delete(room.code);
   } else {
@@ -2830,7 +3021,7 @@ function handleDisconnect(ws) {
     // KRITISKT: rÃ¤kna inte bots i tom-rum-check, annars lever sim:en vidare med
     // bara bot-ws kvar (rum-lÃ¤cka, evig bot-AI-tick).
     let realCount = 0;
-    for (const [, m] of room.members) { if (!m._isBot) realCount++; }
+    for (const [, m] of room.members) { if (!m._isBot && !m.isSpectator) realCount++; }
     if (realCount === 0) {
       // #wifi: behall rummet + stashen om sista manniskan just tappade kopplingen (rejoin-grace)
       if (roomHasLiveReconnectStash(room)) {
@@ -2847,7 +3038,7 @@ function handleDisconnect(ws) {
 // v2 matchmaking: ge matchmakern serverns helpers (send/rooms/sim/kod-generator)
 // AUDIT C312: matchmakern behöver presenceChanged + broadcastPublicRooms för att
 // vänner ska se matchmade spelare som 'i match' (ej fast i 'lobby' med stale kod).
-matchmaker.setHelpers({ send, rooms, createSim, startSim, generateCode, presenceChanged: accounts.presenceChanged, broadcastPublicRooms });
+matchmaker.setHelpers({ send, rooms, createSim, startSim, generateCode, presenceChanged: accounts.presenceChanged, broadcastPublicRooms, simEnded, handleDisconnect });
 groups.setHelpers({ send, wsForAccount: accounts.wsForAccount, isBlocked: accounts.isBlockedPair }); // B2: droppa grupp-invites blockad→blockerare
 
 server.listen(PORT, () => {
@@ -2855,10 +3046,25 @@ server.listen(PORT, () => {
   console.log('  THE PENETRATOR â€” Co-op Server v1');
   console.log('  Listening on port ' + PORT);
   // UDP-transport bredvid WS (V2). Samma portnummer, separat socket-namespace.
-  attachUdp({
+  udpServer = attachUdp({
     handleMessage, handleDisconnect, genId,
     port: parseInt(process.env.UDP_PORT || PORT, 10),
     rttIntervalMs: RTT_PING_INTERVAL_MS,
   });
   console.log('â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•');
 });
+
+// C-fix4 (Defect B): EN central shutdown-handler ager exit. accounts.js kravs FORST
+// (server.js:7) och registrerar sin egen SIGTERM-listener som BARA flushar (utan
+// process.exit). Har kor vi udpServer.close() (BYE-all -> klienter flippar direkt till
+// STATE_CLOSED + reconnect) FORE flush + exit, sa deploy-omstart inte ger ~8s klient-hang.
+let _shuttingDown = false;
+function _gracefulShutdown() {
+  if (_shuttingDown) return;
+  _shuttingDown = true;
+  try { if (udpServer && typeof udpServer.close === 'function') udpServer.close(); } catch (e) {}
+  try { if (accounts && typeof accounts.flushSync === 'function') accounts.flushSync(); } catch (e) {}
+  process.exit(0);
+}
+process.on('SIGTERM', _gracefulShutdown);
+process.on('SIGINT', _gracefulShutdown);
