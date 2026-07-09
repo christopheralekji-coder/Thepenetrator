@@ -31,6 +31,10 @@ function makeBoss(bossKey, x, y, coopMul) {
     bulletSpeed: 620, bulletDmg: Math.round(cfg.dmg * 0.55),
     bulletColor: cfg.bulletColor || cfg.glow,
     shootRange: 520, shootRate: 1200,
+    // final_combo: 3 powers att rotera (speglar game.js:22314). powerSwapAt lazy-init:as
+    // i aiFinalCombo (makeBoss saknar `now`), så power-index 0 visas hela första intervallet.
+    powerSet: (cfg.powerSet && cfg.powerSet.length) ? cfg.powerSet.slice() : null,
+    powerIdx: 0, powerSwapAt: 0,
     // Cloaker burst-kö: ersätter setTimeout med tick-baserad scheduling
     burstQueue: [],
     // Standard enemy-fields som även bossar har
@@ -383,6 +387,54 @@ function aiFinal(sim, b, p, ndx, ndy, d, hpFrac, dt, now) {
   }
 }
 
+// Power-glow-tint per aktiv power (speglar game.js:45410). Modul-const → ingen
+// per-tick-allokering (körs för varje boss varje tick).
+const POWER_TINTS = {
+  caster:        '#9aff5a',
+  tank_charger:  '#ff3a3a',
+  cloaker:       '#aa3aff',
+  brute_charger: '#ff8a30',
+  plasma:        '#3acaff',
+  jetpack:       '#ff5a14',
+  gas_sniper:    '#aaff5a',
+  shielder:      '#ffd54a',
+  avatar:        '#ff5aff',
+};
+
+// FINAL COMBO (alla 10 kampanj-bossar): roterar genom 3 powers ur b.powerSet var
+// 5:e sek (3:e vid <33% HP för crescendo), delegerar till befintlig ai*-funktion så
+// varje boss spelar som sina 3 minibossar kombinerade. Speglar game.js:45402
+// aiFinalCombo — klient-only partiklar/shake borttagna; b.phase driver klientens
+// fas-FX (p-fältet är redan wire:at end-to-end) så varje power-byte syns visuellt.
+function aiFinalCombo(sim, b, p, ndx, ndy, d, hpFrac, dt, now) {
+  const ps = (b.powerSet && b.powerSet.length) ? b.powerSet : ['caster', 'tank_charger', 'cloaker'];
+  const swapInterval = hpFrac < 0.33 ? 3000 : 5000;
+  // Lazy-init: makeBoss saknar `now`, så sätt första deadline här → idx 0 hålls
+  // hela första intervallet (annars swap direkt till idx 1 och idx 0 visas aldrig).
+  if (!b.powerSwapAt) b.powerSwapAt = now + swapInterval;
+  if (now > b.powerSwapAt) {
+    b.powerSwapAt = now + swapInterval;
+    b.powerIdx = (b.powerIdx + 1) % ps.length;
+    const newPower = ps[b.powerIdx % ps.length];
+    if (POWER_TINTS[newPower]) b.glow = POWER_TINTS[newPower];
+    // b.phase 1..3 cyklar per swap → klientens fas-visuell lyser upp vid varje byte.
+    b.phase = (b.powerIdx % ps.length) + 1;
+  }
+  const power = ps[b.powerIdx % ps.length];
+  switch (power) {
+    case 'caster':         aiCaster(sim, b, p, ndx, ndy, d, hpFrac, dt, now); break;
+    case 'tank_charger':   aiTankCharger(sim, b, p, ndx, ndy, d, hpFrac, dt, now); break;
+    case 'cloaker':        aiCloaker(sim, b, p, ndx, ndy, d, hpFrac, dt, now); break;
+    case 'brute_charger':  aiBruteCharger(sim, b, p, ndx, ndy, d, hpFrac, dt, now); break;
+    case 'plasma':         aiPlasma(sim, b, p, ndx, ndy, d, hpFrac, dt, now); break;
+    case 'jetpack':        aiJetpack(sim, b, p, ndx, ndy, d, hpFrac, dt, now); break;
+    case 'gas_sniper':     aiGasSniper(sim, b, p, ndx, ndy, d, hpFrac, dt, now); break;
+    case 'shielder':       aiShielder(sim, b, p, ndx, ndy, d, hpFrac, dt, now); break;
+    case 'avatar':         aiAvatar(sim, b, p, ndx, ndy, d, hpFrac, dt, now); break;
+    default:               aiBruteCharger(sim, b, p, ndx, ndy, d, hpFrac, dt, now);
+  }
+}
+
 // updateBoss dispatcher
 function updateBoss(sim, b, dt, now, players) {
   const target = findNearestPlayer(b, players);
@@ -407,6 +459,7 @@ function updateBoss(sim, b, dt, now, players) {
     case 'gas_sniper':     aiGasSniper(sim, b, target, ndx, ndy, d, hpFrac, dt, now); break;
     case 'shielder':       aiShielder(sim, b, target, ndx, ndy, d, hpFrac, dt, now); break;
     case 'avatar':         aiAvatar(sim, b, target, ndx, ndy, d, hpFrac, dt, now); break;
+    case 'final_combo':    aiFinalCombo(sim, b, target, ndx, ndy, d, hpFrac, dt, now); break;
     case 'final':          aiFinal(sim, b, target, ndx, ndy, d, hpFrac, dt, now); break;
     default:               aiBruteCharger(sim, b, target, ndx, ndy, d, hpFrac, dt, now);
   }
